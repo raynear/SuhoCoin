@@ -2,6 +2,7 @@ package POW
 
 import (
     "SuhoCoin/block"
+    "SuhoCoin/blockheader"
     "SuhoCoin/config"
     "bytes"
     "crypto/sha256"
@@ -9,6 +10,7 @@ import (
     "math"
     "math/big"
     "strconv"
+    "time"
 )
 
 type POW struct {
@@ -71,6 +73,18 @@ func (pow *POW) Run() (int64, []byte) {
     fmt.Println()
 
     return nonce, hash[:]
+}
+
+func FindAnswer(data string, prevBlockHash []byte, height int64, difficulty int64, merkleRoot []byte) *block.Block {
+    block := &block.Block{blockheader.BlockHeader{config.BlockchainVersion, []byte{}, prevBlockHash, height, time.Now().Unix(), difficulty, 0, merkleRoot}, 0, [][]byte{}, data}
+
+    pow := NewPOW(block)
+    nonce, hash := pow.Run()
+
+    block.Header.Hash = hash[:]
+    block.Header.Nonce = nonce
+
+    return block
 }
 
 func (pow *POW) Validate() bool {
