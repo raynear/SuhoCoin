@@ -13,7 +13,7 @@ type BlockHeader struct {
     Height        int64
     TimeStamp     int64
     Difficulty    int64
-    Nonce         []byte
+    Nonce         int64
     MerkleRoot    []byte
 }
 
@@ -27,7 +27,6 @@ func (bh *BlockHeader) SetHash() {
         height,
         timestamp,
         difficulty,
-        bh.Nonce,
         bh.MerkleRoot},
         []byte{})
     hash := sha256.Sum256(Serialize)

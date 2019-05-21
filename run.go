@@ -1,8 +1,8 @@
 package main
 
 import (
+    "SuhoCoin/blockchain"
     "fmt"
-    "test/block/blockchain"
 )
 
 func main() {
@@ -17,6 +17,7 @@ func main() {
     for _, block := range bc.Blocks {
         fmt.Printf("prev hash: %x\n", block.Header.PrevBlockHash)
         fmt.Println("Data", block.Data)
+        fmt.Println("Nonce", block.Header.Nonce)
         fmt.Printf("Hash: %x\n", block.Header.Hash)
         fmt.Println()
     }

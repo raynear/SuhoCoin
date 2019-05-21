@@ -1,4 +1,4 @@
 package config
 
 var BlockchainVersion int64 = 0
-var targetBits = 24
+var TargetBits int64 = 24
