@@ -1,6 +1,7 @@
 package main
 
 import (
+    "SuhoCoin/block"
     "SuhoCoin/blockchain"
     "fmt"
 )
@@ -14,11 +15,15 @@ func main() {
     bc.AddBlock("test2")
     bc.AddBlock("running?")
 
-    for _, block := range bc.Blocks {
-        fmt.Printf("prev hash: %x\n", block.Header.PrevBlockHash)
-        fmt.Println("Data", block.Data)
-        fmt.Println("Nonce", block.Header.Nonce)
-        fmt.Printf("Hash: %x\n", block.Header.Hash)
-        fmt.Println()
+    iter := bc.DB.NewIterator(nil, nil)
+    for iter.Next() {
+        key := iter.Key()
+        value := iter.Value()
+        if string(key) == "l" {
+            fmt.Printf("Key: %s | Value: %x", string(key), value)
+        } else {
+            fmt.Printf("Key: %x | Value: ", key)
+            fmt.Println(block.DeserializeBlock(value))
+        }
     }
 }
