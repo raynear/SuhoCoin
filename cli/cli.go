@@ -5,8 +5,8 @@ import (
     "SuhoCoin/block"
     "SuhoCoin/blockchain"
     "SuhoCoin/config"
+    "SuhoCoin/util"
     "fmt"
-    "log"
     "os"
     "strconv"
 
@@ -14,16 +14,9 @@ import (
     "github.com/urfave/cli"
 )
 
-func err(msg string, e error) {
-    if e != nil {
-        fmt.Println(msg, e)
-        log.Fatal(msg, e)
-    }
-}
-
 func Run(bc *blockchain.Blockchain) {
     file, e := os.Open("test.config")
-    err("File Error", e)
+    err.ERR("File Error", e)
 
     viper.SetConfigType("prop")
     viper.ReadConfig(file)
@@ -91,15 +84,13 @@ func Run(bc *blockchain.Blockchain) {
             Usage: "delete all DB",
             Action: func(c *cli.Context) error {
                 bc.DB.Close()
-                err := os.RemoveAll("./" + config.V.GetString("Default_db"))
-                if err != nil {
-                    fmt.Println("del error", err)
-                }
+                e := os.RemoveAll("./" + config.V.GetString("Default_db"))
+                err.ERR("del error", e)
                 return nil
             },
         },
     }
 
     e = app.Run(os.Args)
-    err("Cli Error", e)
+    err.ERR("Cli Error", e)
 }

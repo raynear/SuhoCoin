@@ -4,7 +4,6 @@ import (
     "SuhoCoin/blockchain"
     "SuhoCoin/cli"
     "SuhoCoin/config"
-    "SuhoCoin/util"
     "fmt"
 )
 
@@ -17,6 +16,4 @@ func main() {
     defer bc.DB.Close()
 
     cli.Run(bc)
-
-    err.ERR()
 }

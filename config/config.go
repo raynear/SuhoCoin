@@ -1,7 +1,7 @@
 package config
 
 import (
-    "fmt"
+    "SuhoCoin/util"
     "os"
 
     "github.com/spf13/viper"
@@ -11,9 +11,7 @@ var V *viper.Viper
 
 func ReadConfig(confFile string) *viper.Viper {
     file, e := os.Open(confFile)
-    if e != nil {
-        fmt.Println("ReadConfigFile Error:", e)
-    }
+    err.ERR("ReadConfigFile Error:", e)
 
     var v viper.Viper
 

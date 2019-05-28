@@ -5,6 +5,7 @@ import (
     "SuhoCoin/block"
     "SuhoCoin/config"
     "SuhoCoin/transaction"
+    "SuhoCoin/util"
     "fmt"
 
     "github.com/syndtr/goleveldb/leveldb"
@@ -21,28 +22,19 @@ func GenesisBlock(coinbase *transaction.Tx) *block.Block {
 
 func NewBlockchain(address string) *Blockchain {
     var LastBlockHash []byte
-    db, err := leveldb.OpenFile(config.V.GetString("Default_db"), nil)
-    if err != nil {
-        fmt.Println("NewBlockchain open DB Error", err)
-    }
+    db, e := leveldb.OpenFile(config.V.GetString("Default_db"), nil)
+    err.ERR("NewBlockchain open DB Error", e)
 
-    LastBlockHash, err = db.Get([]byte("l"), nil)
-    if err != nil {
+    LastBlockHash, e = db.Get([]byte("l"), nil)
+    if e != nil {
         cbtx := POW.CoinbaseTx(address, "GENESIS of SuhoCoin")
         genesis := GenesisBlock(cbtx)
         fmt.Println(genesis)
-        err = db.Put(genesis.Header.Hash, genesis.Serialize(), nil)
-        if err != nil {
-            fmt.Println("Genesis Block put in DB Error")
-        }
-        err = db.Put([]byte("l"), genesis.Header.Hash, nil)
-        if err != nil {
-            fmt.Println("lastBlockHash put in DB Error")
-        }
+        e = db.Put(genesis.Header.Hash, genesis.Serialize(), nil)
+        err.ERR("Genesis Block put in DB Error", e)
+        e = db.Put([]byte("l"), genesis.Header.Hash, nil)
+        err.ERR("lastBlockHash put in DB Error", e)
         LastBlockHash = genesis.Header.Hash
-
-        lvalue, _ := db.Get([]byte("l"), nil)
-        fmt.Println("DB(l)", lvalue)
     }
 
     bc := Blockchain{LastBlockHash, db}
@@ -51,13 +43,13 @@ func NewBlockchain(address string) *Blockchain {
 }
 
 func (bc *Blockchain) AddBlock(data string) {
-    lastHash, err := bc.DB.Get([]byte("l"), nil)
-    if err != nil {
+    lastHash, e := bc.DB.Get([]byte("l"), nil)
+    if e != nil {
         fmt.Println("Blockchain not in DB")
         fmt.Println(lastHash)
     }
-    lastBlockByte, err := bc.DB.Get(lastHash, nil)
-    if err != nil {
+    lastBlockByte, e := bc.DB.Get(lastHash, nil)
+    if e != nil {
         fmt.Println("lastHash exist, lastHash's block is not in DB")
         fmt.Println(lastBlockByte)
     }
@@ -66,15 +58,11 @@ func (bc *Blockchain) AddBlock(data string) {
     cbtx := POW.CoinbaseTx(config.V.GetString("Coinbase"), "")
     newBlock := POW.FindAnswer(data, lastHash, lastBlock.Header.Height, 0, []byte{}, []*transaction.Tx{cbtx})
 
-    err = bc.DB.Put(newBlock.Header.Hash, newBlock.Serialize(), nil)
-    if err != nil {
-        fmt.Println("new block put in db Error")
-    }
+    e = bc.DB.Put(newBlock.Header.Hash, newBlock.Serialize(), nil)
+    err.ERR("new block put in db Error", e)
 
-    err = bc.DB.Put([]byte("l"), newBlock.Header.Hash, nil)
-    if err != nil {
-        fmt.Println("new block hash put in db(l) Error")
-    }
+    e = bc.DB.Put([]byte("l"), newBlock.Header.Hash, nil)
+    err.ERR("new block hash put in db(l) Error", e)
     bc.LastBlockHash = newBlock.Header.Hash
 
 }
@@ -92,10 +80,8 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 func (i *BlockchainIterator) Next() *block.Block {
     var Block *block.Block
 
-    encodedBlock, err := i.db.Get(i.currentHash, nil)
-    if err != nil {
-        fmt.Println("read DB Error:", err)
-    }
+    encodedBlock, e := i.db.Get(i.currentHash, nil)
+    err.ERR("read DB Error", e)
     Block = block.DeserializeBlock(encodedBlock)
     i.currentHash = Block.Header.PrevBlockHash
     return Block

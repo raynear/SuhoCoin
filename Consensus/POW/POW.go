@@ -33,6 +33,7 @@ func (pow *POW) prepareData(_nonce int64) []byte {
     timestamp := []byte(strconv.FormatInt(pow.block.Header.TimeStamp, 10))
     difficulty := []byte(config.V.GetString("TargetBits"))
     nonce := []byte(strconv.FormatInt(_nonce, 10))
+    merkleroot := pow.block.NewTxMerkleTree()
 
     data := bytes.Join(
         [][]byte{
@@ -41,7 +42,7 @@ func (pow *POW) prepareData(_nonce int64) []byte {
             timestamp,
             difficulty,
             nonce,
-            pow.block.Header.MerkleRoot,
+            merkleroot,
         },
         []byte{},
     )
@@ -53,9 +54,9 @@ func CoinbaseTx(to string, data string) *transaction.Tx {
     if data == "" {
         data = fmt.Sprintf("Reward to '%s'", to)
     }
-    txin := transaction.TXInput{[]byte{}, -1, data}
-    txout := transaction.TXOutput{config.V.GetInt("Reward"), to}
-    tx := transaction.Tx{nil, []transaction.TXInput{txin}, []transaction.TXOutput{txout}}
+    txin := transaction.TXInput{Txid: []byte{}, Vout: -1, ScriptSig: data}
+    txout := transaction.TXOutput{Value: config.V.GetInt("Reward"), ScriptPubKey: to}
+    tx := transaction.Tx{ID: nil, Vin: []transaction.TXInput{txin}, Vout: []transaction.TXOutput{txout}}
     return &tx
 }
 
@@ -66,7 +67,7 @@ func (pow *POW) Run() (int64, []byte) {
 
     nonce = 0
 
-    fmt.Printf("Mining Block %s\n", pow.block.Data)
+    fmt.Printf("Mining Block : %s\n", pow.block.Data)
 
     for nonce < math.MaxInt64 {
         data := pow.prepareData(nonce)
@@ -87,7 +88,7 @@ func (pow *POW) Run() (int64, []byte) {
 }
 
 func FindAnswer(data string, prevBlockHash []byte, height int64, difficulty int64, merkleRoot []byte, TXs []*transaction.Tx) *block.Block {
-    block := &block.Block{blockheader.BlockHeader{config.V.GetInt64("BlockchainVersion"), []byte{}, prevBlockHash, height, time.Now().Unix(), difficulty, 0, merkleRoot}, 0, TXs, data}
+    block := &block.Block{Header: blockheader.BlockHeader{Version: config.V.GetInt64("BlockchainVersion"), Hash: []byte{}, PrevBlockHash: prevBlockHash, Height: height, TimeStamp: time.Now().Unix(), Difficulty: difficulty, Nonce: 0, MerkleRoot: merkleRoot}, TxCnt: 0, Transactions: TXs, Data: data}
 
     pow := NewPOW(block)
     nonce, hash := pow.Run()

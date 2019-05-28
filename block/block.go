@@ -2,11 +2,11 @@ package block
 
 import (
     "SuhoCoin/blockheader"
+    "SuhoCoin/merkletree"
     "SuhoCoin/transaction"
+    "SuhoCoin/util"
     "bytes"
     "encoding/gob"
-    "fmt"
-    "runtime"
 )
 
 type Block struct {
@@ -16,33 +16,34 @@ type Block struct {
     Data         string
 }
 
+func (b *Block) NewTxMerkleTree() []byte {
+    var transactions [][]byte
+
+    for _, tx := range b.Transactions {
+        transactions = append(transactions, tx.Serialize())
+    }
+    mTree := merkletree.NewMerkleTree(transactions)
+    return mTree.Root.Data
+}
+
 func (b *Block) Serialize() []byte {
     var result bytes.Buffer
 
     encoder := gob.NewEncoder(&result)
-    err := encoder.Encode(b)
+    e := encoder.Encode(b)
 
-    if err != nil {
-        fmt.Println("{p:Block, f:Serialize} Error", err)
-    }
-
-    pc := make([]uintptr, 10)
-    runtime.Callers(1, pc)
-    f := runtime.FuncForPC(pc[0])
-    fmt.Println("currentFunction:", f.Name())
+    err.ERR("Encode Error", e)
 
     return result.Bytes()
 }
 
-func DeserializeBlock(d []byte) *Block {
+func DeserializeBlock(b []byte) *Block {
     var block Block
 
-    decoder := gob.NewDecoder(bytes.NewReader(d))
-    err := decoder.Decode(&block)
+    decoder := gob.NewDecoder(bytes.NewReader(b))
+    e := decoder.Decode(&block)
 
-    if err != nil {
-        fmt.Println("{p:Block, f:Deserialize} Error", err)
-    }
+    err.ERR("Decode Error", e)
 
     return &block
 }

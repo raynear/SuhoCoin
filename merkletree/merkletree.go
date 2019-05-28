@@ -5,6 +5,10 @@ import (
     "fmt"
 )
 
+type MerkleTree struct {
+    Root *MerkleNode
+}
+
 type MerkleNode struct {
     Left  *MerkleNode
     Right *MerkleNode
@@ -29,7 +33,7 @@ func NewMerkleNode(left *MerkleNode, right *MerkleNode, data []byte) *MerkleNode
     return &mNode
 }
 
-func NewMerkleTree(data [][]byte) *MerkleNode {
+func NewMerkleTree(data [][]byte) *MerkleTree {
     var nodes []MerkleNode
 
     if len(data)%2 != 0 {
@@ -65,19 +69,16 @@ func NewMerkleTree(data [][]byte) *MerkleNode {
     for i := 0; i < len(nodes)/2; i++ {
         var newLevel []MerkleNode
 
-        for j := 0; j < len(nodes)-1; j += 2 {
+        for j := 0; j < len(nodes); j += 2 {
             node := NewMerkleNode(&nodes[j], &nodes[j+1], nil)
             newLevel = append(newLevel, *node)
-            fmt.Println(j, "newLevel", newLevel)
         }
         nodes = newLevel
-
-        fmt.Println("newLevel", newLevel)
     }
 
     fmt.Println("Root", nodes[0])
 
-    MerkleRoot := nodes[0]
+    mMerkleTree := MerkleTree{&nodes[0]}
 
-    return &MerkleRoot
+    return &mMerkleTree
 }
