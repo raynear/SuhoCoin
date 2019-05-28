@@ -69,7 +69,7 @@ func NewMerkleTree(data [][]byte) *MerkleTree {
     for i := 0; i < len(nodes)/2; i++ {
         var newLevel []MerkleNode
 
-        for j := 0; j < len(nodes); j += 2 {
+        for j := 0; j < len(nodes)-1; j += 2 {
             node := NewMerkleNode(&nodes[j], &nodes[j+1], nil)
             newLevel = append(newLevel, *node)
         }
