@@ -1,29 +1,22 @@
 package main
 
 import (
-    "SuhoCoin/block"
     "SuhoCoin/blockchain"
+    "SuhoCoin/cli"
+    "SuhoCoin/config"
+    "SuhoCoin/util"
     "fmt"
 )
 
 func main() {
-    fmt.Println("testing blockchain")
+    fmt.Println("SuhoCoin Running")
+    fmt.Println()
 
-    bc := blockchain.NewBlockchain()
+    config.V = config.ReadConfig("test.config")
+    bc := blockchain.NewBlockchain("raynear")
+    defer bc.DB.Close()
 
-    bc.AddBlock("test1")
-    bc.AddBlock("test2")
-    bc.AddBlock("running?")
+    cli.Run(bc)
 
-    iter := bc.DB.NewIterator(nil, nil)
-    for iter.Next() {
-        key := iter.Key()
-        value := iter.Value()
-        if string(key) == "l" {
-            fmt.Printf("Key: %s | Value: %x", string(key), value)
-        } else {
-            fmt.Printf("Key: %x | Value: ", key)
-            fmt.Println(block.DeserializeBlock(value))
-        }
-    }
+    err.ERR()
 }

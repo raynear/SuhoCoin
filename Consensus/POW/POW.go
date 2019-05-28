@@ -4,6 +4,7 @@ import (
     "SuhoCoin/block"
     "SuhoCoin/blockheader"
     "SuhoCoin/config"
+    "SuhoCoin/transaction"
     "bytes"
     "crypto/sha256"
     "fmt"
@@ -20,7 +21,7 @@ type POW struct {
 
 func NewPOW(b *block.Block) *POW {
     target := big.NewInt(1)
-    target.Lsh(target, uint(256-config.TargetBits))
+    target.Lsh(target, uint(256-config.V.GetInt("TargetBits")))
 
     pow := &POW{b, target}
 
@@ -30,7 +31,7 @@ func NewPOW(b *block.Block) *POW {
 func (pow *POW) prepareData(_nonce int64) []byte {
     height := []byte(strconv.FormatInt(pow.block.Header.Height, 10))
     timestamp := []byte(strconv.FormatInt(pow.block.Header.TimeStamp, 10))
-    difficulty := []byte(strconv.FormatInt(config.TargetBits, 10))
+    difficulty := []byte(config.V.GetString("TargetBits"))
     nonce := []byte(strconv.FormatInt(_nonce, 10))
 
     data := bytes.Join(
@@ -46,6 +47,16 @@ func (pow *POW) prepareData(_nonce int64) []byte {
     )
 
     return data
+}
+
+func CoinbaseTx(to string, data string) *transaction.Tx {
+    if data == "" {
+        data = fmt.Sprintf("Reward to '%s'", to)
+    }
+    txin := transaction.TXInput{[]byte{}, -1, data}
+    txout := transaction.TXOutput{config.V.GetInt("Reward"), to}
+    tx := transaction.Tx{nil, []transaction.TXInput{txin}, []transaction.TXOutput{txout}}
+    return &tx
 }
 
 func (pow *POW) Run() (int64, []byte) {
@@ -75,8 +86,8 @@ func (pow *POW) Run() (int64, []byte) {
     return nonce, hash[:]
 }
 
-func FindAnswer(data string, prevBlockHash []byte, height int64, difficulty int64, merkleRoot []byte) *block.Block {
-    block := &block.Block{blockheader.BlockHeader{config.BlockchainVersion, []byte{}, prevBlockHash, height, time.Now().Unix(), difficulty, 0, merkleRoot}, 0, [][]byte{}, data}
+func FindAnswer(data string, prevBlockHash []byte, height int64, difficulty int64, merkleRoot []byte, TXs []*transaction.Tx) *block.Block {
+    block := &block.Block{blockheader.BlockHeader{config.V.GetInt64("BlockchainVersion"), []byte{}, prevBlockHash, height, time.Now().Unix(), difficulty, 0, merkleRoot}, 0, TXs, data}
 
     pow := NewPOW(block)
     nonce, hash := pow.Run()

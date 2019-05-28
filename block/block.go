@@ -2,15 +2,17 @@ package block
 
 import (
     "SuhoCoin/blockheader"
+    "SuhoCoin/transaction"
     "bytes"
     "encoding/gob"
     "fmt"
+    "runtime"
 )
 
 type Block struct {
     Header       blockheader.BlockHeader
     TxCnt        int64
-    Transactions [][]byte
+    Transactions []*transaction.Tx
     Data         string
 }
 
@@ -23,6 +25,11 @@ func (b *Block) Serialize() []byte {
     if err != nil {
         fmt.Println("{p:Block, f:Serialize} Error", err)
     }
+
+    pc := make([]uintptr, 10)
+    runtime.Callers(1, pc)
+    f := runtime.FuncForPC(pc[0])
+    fmt.Println("currentFunction:", f.Name())
 
     return result.Bytes()
 }
