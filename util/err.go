@@ -15,7 +15,8 @@ func ERR(msg string, e error) {
         fmt.Printf("!!ERR!! ")
         fmt.Printf("Pack:%s", pwd[0])
         if len(pwd) > 2 {
-            fmt.Println(" Func:", pwd[1], ".", pwd[2], "|", msg)
+            fmt.Printf(" Func:%s.%s | ", pwd[1], pwd[2])
+            fmt.Println(msg)
         } else {
             fmt.Println(" Func:", pwd[1], "|", msg)
         }

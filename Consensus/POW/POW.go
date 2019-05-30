@@ -33,7 +33,7 @@ func (pow *POW) prepareData(_nonce int64) []byte {
     timestamp := []byte(strconv.FormatInt(pow.block.Header.TimeStamp, 10))
     difficulty := []byte(config.V.GetString("TargetBits"))
     nonce := []byte(strconv.FormatInt(_nonce, 10))
-    merkleroot := pow.block.NewTxMerkleTree()
+    merkleroot := pow.block.Header.MerkleRoot
 
     data := bytes.Join(
         [][]byte{
@@ -50,16 +50,6 @@ func (pow *POW) prepareData(_nonce int64) []byte {
     return data
 }
 
-func CoinbaseTx(to string, data string) *transaction.Tx {
-    if data == "" {
-        data = fmt.Sprintf("Reward to '%s'", to)
-    }
-    txin := transaction.TXInput{Txid: []byte{}, Vout: -1, ScriptSig: data}
-    txout := transaction.TXOutput{Value: config.V.GetInt("Reward"), ScriptPubKey: to}
-    tx := transaction.Tx{ID: nil, Vin: []transaction.TXInput{txin}, Vout: []transaction.TXOutput{txout}}
-    return &tx
-}
-
 func (pow *POW) Run() (int64, []byte) {
     var hashInt big.Int
     var hash [32]byte
@@ -68,6 +58,7 @@ func (pow *POW) Run() (int64, []byte) {
     nonce = 0
 
     fmt.Printf("Mining Block : %s\n", pow.block.Data)
+    pow.block.Header.MerkleRoot = pow.block.NewTxMerkleTree()
 
     for nonce < math.MaxInt64 {
         data := pow.prepareData(nonce)

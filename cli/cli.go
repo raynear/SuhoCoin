@@ -5,25 +5,48 @@ import (
     "SuhoCoin/block"
     "SuhoCoin/blockchain"
     "SuhoCoin/config"
+    "SuhoCoin/transaction"
     "SuhoCoin/util"
+    "SuhoCoin/wallet"
+    "bytes"
     "fmt"
     "os"
     "strconv"
 
-    "github.com/spf13/viper"
     "github.com/urfave/cli"
 )
 
 func Run(bc *blockchain.Blockchain) {
-    file, e := os.Open("test.config")
-    err.ERR("File Error", e)
-
-    viper.SetConfigType("prop")
-    viper.ReadConfig(file)
-
     app := cli.NewApp()
 
     app.Commands = []cli.Command{
+        {
+            Name:  "createwallet",
+            Usage: "createwallet for use",
+            Action: func(c *cli.Context) error {
+                myWallet := wallet.NewWallet()
+                fmt.Println("Your new address:", string(myWallet.GetAddress()))
+
+                return nil
+            },
+        },
+        {
+            Name:  "getbalance",
+            Usage: "getbalance 'address'",
+            Action: func(c *cli.Context) error {
+                address := c.Args()[0]
+                balance := 0
+                UTXOs := bc.FindUTXO(address)
+
+                for _, out := range UTXOs {
+                    balance += out.Value
+                }
+
+                fmt.Printf("Balance of '%s': %d\n", address, balance)
+
+                return nil
+            },
+        },
         {
             Name:    "addblock",
             Aliases: []string{"add"},
@@ -31,6 +54,20 @@ func Run(bc *blockchain.Blockchain) {
             Action: func(c *cli.Context) error {
                 fmt.Println("addblock:", c.Args())
                 bc.AddBlock(c.Args().First())
+
+                return nil
+            },
+        },
+        {
+            Name:    "transaction",
+            Aliases: []string{"tx"},
+            Usage:   "transaction 'TXHASH'",
+            Action: func(c *cli.Context) error {
+                fmt.Println("tx detail:", c.Args())
+                aTxPayload, e := bc.DB.Get([]byte(c.Args()[0]), nil)
+                err.ERR("Get Tx Error", e)
+                aTx := transaction.DeserializeTx(aTxPayload)
+                fmt.Println("tx:", aTx)
 
                 return nil
             },
@@ -69,10 +106,18 @@ func Run(bc *blockchain.Blockchain) {
                     key := iter.Key()
                     value := iter.Value()
                     if string(key) == "l" {
-                        fmt.Printf("Key: %s | Value: %x", string(key), value)
+                        fmt.Printf("Key: %s | Value: %x\n", string(key), value)
                     } else {
-                        fmt.Printf("Key: %x | Value: ", key)
-                        fmt.Println(block.DeserializeBlock(value))
+                        if bytes.Compare(key[:1], []byte("b")) == 0 {
+                            fmt.Printf("Key: %x | Value: ", key)
+                            aBlock := block.DeserializeBlock(value)
+                            aBlock.Print()
+                        }
+                        if bytes.Compare(key[:1], []byte("t")) == 0 {
+                            fmt.Printf("Key: %x | Value: ", key)
+                            aTx := transaction.DeserializeTx(value)
+                            aTx.Print()
+                        }
                     }
                 }
 
@@ -91,6 +136,6 @@ func Run(bc *blockchain.Blockchain) {
         },
     }
 
-    e = app.Run(os.Args)
+    e := app.Run(os.Args)
     err.ERR("Cli Error", e)
 }

@@ -7,6 +7,7 @@ import (
     "SuhoCoin/util"
     "bytes"
     "encoding/gob"
+    "fmt"
 )
 
 type Block struct {
@@ -14,6 +15,19 @@ type Block struct {
     TxCnt        int64
     Transactions []*transaction.Tx
     Data         string
+}
+
+func (b *Block) Print() {
+    fmt.Printf("Version(%d) ", b.Header.Version)
+    fmt.Printf("Hash(%x) ", b.Header.Hash)
+    fmt.Printf("PrevBlockHash(%x) ", b.Header.PrevBlockHash)
+    fmt.Printf("Height(%d) ", b.Header.Height)
+    fmt.Printf("TimeStamp(%d) ", b.Header.TimeStamp)
+    fmt.Printf("Difficulty(%d) ", b.Header.Difficulty)
+    fmt.Printf("Nonce(%d) ", b.Header.Nonce)
+    fmt.Printf("MerkleRoot(%x) ", b.Header.MerkleRoot)
+    fmt.Printf("TxCnt(%d) ", b.TxCnt)
+    fmt.Printf("Data(%s)\n", b.Data)
 }
 
 func (b *Block) NewTxMerkleTree() []byte {
