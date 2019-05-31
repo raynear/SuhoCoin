@@ -2,8 +2,9 @@ package config
 
 import (
 	"SuhoCoin/util"
-	"github.com/spf13/viper"
 	"os"
+
+	"github.com/spf13/viper"
 )
 
 var V *viper.Viper
