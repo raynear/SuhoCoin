@@ -1,7 +1,6 @@
 package wallet
 
 import (
-	"SuhoCoin/config"
 	"SuhoCoin/util"
 	"bytes"
 	"crypto/aes"
@@ -28,11 +27,7 @@ type Wallet struct {
 	PublicKey  []byte
 }
 
-type Wallets struct {
-	Wallets map[string]*Wallet
-}
-
-var Version string = "0"
+var Version []byte = []byte("00")
 var AddressChecksumLen int = 4
 
 func createHash(key string) string {
@@ -80,7 +75,7 @@ func decryptFile(filename string, passphrase string) []byte {
 	return decrypt(data, passphrase)
 }
 
-func NewWallet() *Wallet {
+func NewWallet() string {
 	pubkeyCurve := elliptic.P256() // P256이 가장 효율적이라 함 from https://safecurves.cr.yp.to
 
 	privKey, e := ecdsa.GenerateKey(pubkeyCurve, rand.Reader)
@@ -88,11 +83,63 @@ func NewWallet() *Wallet {
 
 	//	var publicKey ecdsa.PublicKey
 	public := &privKey.PublicKey
-
 	pubKey := append(public.X.Bytes(), public.Y.Bytes()...)
 
 	wallet := Wallet{PrivateKey: *privKey, PublicKey: pubKey}
-	return &wallet
+
+	address := wallet.GetAddress()
+
+	fmt.Printf("Input Password: ")
+	silentPassword, e := gopass.GetPasswdMasked()
+	util.ERR("Password Input Error", e)
+
+	EncryptedWallet := wallet.EncryptWallet(string(silentPassword))
+
+	SaveToFile(address, EncryptedWallet)
+
+	fmt.Println("NewWallet")
+	fmt.Println("Address : ", address, " is saved as file")
+
+	return address
+}
+
+func (w *Wallet) EncodeWallet() []byte {
+	var content bytes.Buffer
+
+	gob.Register(elliptic.P256())
+
+	encoder := gob.NewEncoder(&content)
+
+	e := encoder.Encode(w)
+	util.ERR("wallet encode error", e)
+
+	return content.Bytes()
+}
+
+func (w *Wallet) EncryptWallet(PassPhrase string) []byte {
+	content := w.EncodeWallet()
+
+	ciphertext := encrypt(content, PassPhrase)
+
+	return ciphertext
+}
+
+func DecodeWallet(ByteWallet []byte) Wallet {
+	var wallet Wallet
+	gob.Register(elliptic.P256())
+	decoder := gob.NewDecoder(bytes.NewBuffer(ByteWallet))
+	e := decoder.Decode(&wallet)
+	util.ERR("decode wallet error", e)
+
+	return wallet
+}
+
+func DecryptWallet(EncryptedWallet []byte, PassPhrase string) Wallet {
+	plaintext := decrypt(EncryptedWallet, PassPhrase)
+
+	NewWallet := DecodeWallet(plaintext)
+
+	return NewWallet
 }
 
 func HashPubKey(pubKey []byte) []byte {
@@ -114,7 +161,7 @@ func (w Wallet) GetAddress() string {
 	fmt.Println("W PubKey : ", base58.Encode(w.PublicKey))
 	pubKeyHash := HashPubKey(w.PublicKey)
 	fmt.Println("W PubKeyHash : ", base58.Encode(pubKeyHash))
-	versionedPayload := append([]byte(Version), pubKeyHash...)
+	versionedPayload := append(Version, pubKeyHash...)
 	checksum := checksum(versionedPayload)
 
 	fullPayload := append(versionedPayload, checksum...)
@@ -124,85 +171,18 @@ func (w Wallet) GetAddress() string {
 	return address
 }
 
-func NewWallets() (*Wallets, error) {
-	wallets := Wallets{}
-	wallets.Wallets = make(map[string]*Wallet)
-
-	e := wallets.LoadFromFile()
-
-	return &wallets, e
-}
-
-func (ws *Wallets) CreateWallet() string {
-	wallet := NewWallet()
-	address := wallet.GetAddress()
-	fmt.Println("newAddress : ", address)
-
-	ws.Wallets[address] = wallet
-
-	return address
-}
-
-func (ws *Wallets) GetAddresses() []string {
-	var addresses []string
-
-	for address := range ws.Wallets {
-		addresses = append(addresses, address)
+func LoadFromFile(WalletFileName string) []byte {
+	if _, e := os.Stat(WalletFileName + ".wallet"); os.IsNotExist(e) {
+		util.ERR("WalletFile Not Exist", e)
 	}
 
-	return addresses
-}
-
-func (ws Wallets) GetWallet(address string) Wallet {
-	return *ws.Wallets[address]
-}
-
-func (ws *Wallets) LoadFromFile() error {
-	if _, e := os.Stat(config.V.GetString("WalletFile")); os.IsNotExist(e) {
-		return e
-	}
-
-	fileContent, e := ioutil.ReadFile(config.V.GetString("WalletFile"))
+	fileContent, e := ioutil.ReadFile(WalletFileName + ".wallet")
 	util.ERR("read wallet file error", e)
 
-	fmt.Printf("Input Password: ")
-	silentPassword, e := gopass.GetPasswdMasked()
-	util.ERR("Password Input Error", e)
-
-	plaintext := decrypt(fileContent, string(silentPassword))
-
-	if bytes.Compare(plaintext, []byte("")) == 0 {
-		fmt.Println("Wrong Password")
-		return nil
-	}
-
-	var wallets Wallets
-	gob.Register(elliptic.P256())
-	decoder := gob.NewDecoder(bytes.NewReader(plaintext))
-	e = decoder.Decode(&wallets)
-	util.ERR("decode wallet error", e)
-
-	ws.Wallets = wallets.Wallets
-
-	return nil
+	return fileContent
 }
 
-func (ws Wallets) SaveToFile() {
-	var content bytes.Buffer
-
-	gob.Register(elliptic.P256())
-
-	encoder := gob.NewEncoder(&content)
-
-	e := encoder.Encode(ws)
-	util.ERR("wallet encode error", e)
-
-	fmt.Printf("Input Password: ")
-	silentPassword, e := gopass.GetPasswdMasked()
-	util.ERR("Password Input Error", e)
-
-	ciphertext := encrypt(content.Bytes(), string(silentPassword))
-
-	e = ioutil.WriteFile(config.V.GetString("WalletFile"), ciphertext, 0644)
+func SaveToFile(WalletFileName string, EncryptedWallet []byte) {
+	e := ioutil.WriteFile(WalletFileName+".wallet", EncryptedWallet, 0644)
 	util.ERR("Write wallet file Error", e)
 }

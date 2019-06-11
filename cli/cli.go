@@ -11,10 +11,14 @@ import (
 	"SuhoCoin/wallet"
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/btcsuite/btcutil/base58"
+	"github.com/howeyc/gopass"
 	"github.com/urfave/cli"
 )
 
@@ -26,12 +30,8 @@ func Run(bc *blockchain.Blockchain) {
 			Name:  "createwallet",
 			Usage: "createwallet for use",
 			Action: func(c *cli.Context) error {
-				myWallets, e := wallet.NewWallets()
-				util.ERR("NewWallet Error", e)
-				address := myWallets.CreateWallet()
-				fmt.Println("Your new address:", address)
-				myWallets.SaveToFile()
-				fmt.Println("Your new address:", address)
+				myAddress := wallet.NewWallet()
+				fmt.Println("Your new address:", myAddress)
 
 				return nil
 			},
@@ -40,15 +40,20 @@ func Run(bc *blockchain.Blockchain) {
 			Name:  "listaddress",
 			Usage: "listaddress",
 			Action: func(c *cli.Context) error {
-				myWallets, e := wallet.NewWallets()
-				for _, aWallet := range myWallets.Wallets {
-					pubKeyHash := wallet.HashPubKey(aWallet.PublicKey)
-					fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash))
+				files, err := ioutil.ReadDir("./")
+				if err != nil {
+					log.Fatal(err)
 				}
-				util.ERR("NewWallet Error", e)
-				addresses := myWallets.GetAddresses()
-				for _, address := range addresses {
-					fmt.Println("Your address:", address)
+
+				for _, f := range files {
+					if strings.Contains(f.Name(), ".wallet") {
+						address := f.Name()
+						a := []rune(address)
+
+						myAddress := string(a[:len(a)-7])
+
+						fmt.Println("address :", myAddress)
+					}
 				}
 
 				return nil
@@ -71,12 +76,15 @@ func Run(bc *blockchain.Blockchain) {
 
 				UTXO := utxo.UTXO{Blockchain: bc}
 
-				wallets, e := wallet.NewWallets()
-				util.ERR("Load Wallet Error", e)
+				EncryptedWallet := wallet.LoadFromFile(sender)
 
-				wallet := wallets.GetWallet(sender)
+				fmt.Printf("Input Password: ")
+				silentPassword, e := gopass.GetPasswdMasked()
+				util.ERR("Password Input Error", e)
 
-				tx := utxo.NewUTXOTransaction(&wallet, receiver, amount, &UTXO)
+				myWallet := wallet.DecryptWallet(EncryptedWallet, string(silentPassword))
+
+				tx := utxo.NewUTXOTransaction(&myWallet, receiver, amount, &UTXO)
 
 				bc.AddTx(tx)
 
