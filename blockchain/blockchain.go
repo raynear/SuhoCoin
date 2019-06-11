@@ -29,7 +29,7 @@ func GenesisBlock(coinbase *transaction.Tx) *block.Block {
 func NewBlockchain() *Blockchain {
 	var LastBlockHash []byte
 	db, e := leveldb.OpenFile(config.V.GetString("Default_db"), nil)
-	err.ERR("NewBlockchain open DB Error", e)
+	util.ERR("NewBlockchain open DB Error", e)
 
 	LastBlockHash, e = db.Get([]byte("l"), nil)
 	if e != nil {
@@ -38,17 +38,17 @@ func NewBlockchain() *Blockchain {
 		genesis := GenesisBlock(cbtx)
 		genesis.Print()
 		e = db.Put(append([]byte("b"), genesis.Header.Hash...), genesis.Serialize(), nil)
-		err.ERR("Genesis Block put in DB Error", e)
+		util.ERR("Genesis Block put in DB Error", e)
 		e = db.Put([]byte("l"), genesis.Header.Hash, nil)
-		err.ERR("lastBlockHash put in DB Error", e)
+		util.ERR("lastBlockHash put in DB Error", e)
 		LastBlockHash = genesis.Header.Hash
 	}
 
 	utxo_db, e := leveldb.OpenFile(config.V.GetString("Default_db")+"_UTXO", nil)
-	err.ERR("NewBlockchain open DB Error", e)
+	util.ERR("NewBlockchain open DB Error", e)
 
 	txpool_db, e := leveldb.OpenFile(config.V.GetString("Default_db")+"_TxPool", nil)
-	err.ERR("NewBlockchain open DB Error", e)
+	util.ERR("NewBlockchain open DB Error", e)
 
 	bc := Blockchain{LastBlockHash, db, utxo_db, txpool_db}
 
@@ -75,14 +75,13 @@ func (bc *Blockchain) AddBlock(data string) *block.Block {
 	newBlock.Print()
 
 	e = bc.DB.Put(append([]byte("b"), newBlock.Header.Hash...), newBlock.Serialize(), nil)
-	err.ERR("new block put in db Error", e)
+	util.ERR("new block put in db Error", e)
 
 	e = bc.DB.Put([]byte("l"), newBlock.Header.Hash, nil)
-	err.ERR("new block hash put in db(l) Error", e)
+	util.ERR("new block hash put in db(l) Error", e)
 	bc.LastBlockHash = newBlock.Header.Hash
 
-	// TxPoolDB Delete
-	transaction.ClearTxDB(bc.TxPoolDB)
+	util.ClearDB(bc.TxPoolDB)
 
 	return newBlock
 }
@@ -161,7 +160,7 @@ func (bc *Blockchain) SignTransaction(tx *transaction.Tx, privKey ecdsa.PrivateK
 
 	for _, vin := range tx.Vin {
 		prevTX, e := bc.FindTransaction(vin.TxID)
-		err.ERR("FindTransaction Error", e)
+		util.ERR("FindTransaction Error", e)
 
 		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}
@@ -178,7 +177,7 @@ func (bc *Blockchain) VerifyTransaction(tx *transaction.Tx) bool {
 
 	for _, vin := range tx.Vin {
 		prevTX, e := bc.FindTransaction(vin.TxID)
-		err.ERR("FindTransaction Error", e)
+		util.ERR("FindTransaction Error", e)
 		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}
 
@@ -199,7 +198,7 @@ func (i *BlockchainIterator) Next() *block.Block {
 	var Block *block.Block
 
 	encodedBlock, e := i.DB.Get(append([]byte("b"), i.currentHash...), nil)
-	err.ERR("read DB Error", e)
+	util.ERR("read DB Error", e)
 	Block = block.DeserializeBlock(encodedBlock)
 	i.currentHash = Block.Header.PrevBlockHash
 	return Block

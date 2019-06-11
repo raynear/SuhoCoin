@@ -3,17 +3,14 @@ package utxo
 import (
 	"SuhoCoin/block"
 	"SuhoCoin/blockchain"
-	"SuhoCoin/config"
 	"SuhoCoin/transaction"
 	"SuhoCoin/util"
 	"SuhoCoin/wallet"
 	"encoding/hex"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/btcsuite/btcutil/base58"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type UTXO struct {
@@ -33,7 +30,7 @@ func NewUTXOTransaction(Wallet *wallet.Wallet, to string, amount int, UTXO *UTXO
 
 	for txid, outs := range validOutputs {
 		txID, e := hex.DecodeString(txid)
-		err.ERR("Decode Error", e)
+		util.ERR("Decode Error", e)
 
 		for _, out := range outs {
 			input := transaction.TXInput{TxID: txID, Vout: out, Signature: nil, PubKey: Wallet.PublicKey, ScriptSig: "", Data: ""}
@@ -117,21 +114,16 @@ func (u UTXO) CountTransactions() int {
 func (u UTXO) Reindex() {
 	db := u.Blockchain.UTXODB
 
-	db.Close()
-	e := os.RemoveAll("./" + config.V.GetString("Default_db") + "_UTXO")
-	err.ERR("del error", e)
-
-	db, e = leveldb.OpenFile(config.V.GetString("Default_db")+"_UTXO", nil)
-	u.Blockchain.UTXODB = db
+	util.ClearDB(db)
 
 	UTXO := u.Blockchain.FindUTXO()
 
 	for txID, outs := range UTXO {
 		key, e := hex.DecodeString(txID)
-		err.ERR("Decode Error", e)
+		util.ERR("Decode Error", e)
 
 		e = db.Put(key, outs.Serialize(), nil)
-		err.ERR("DB Put in Error", e)
+		util.ERR("DB Put in Error", e)
 	}
 }
 
@@ -143,7 +135,7 @@ func (u UTXO) Update(block *block.Block) {
 			for _, vin := range tx.Vin {
 				updatedOuts := transaction.TXOutputs{}
 				outsBytes, e := db.Get(vin.TxID, nil)
-				err.ERR("TXID Get Error", e)
+				util.ERR("TXID Get Error", e)
 				outs := transaction.DeserializeOutputs(outsBytes)
 
 				for outIdx, out := range outs.Outputs {

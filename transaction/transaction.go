@@ -127,7 +127,7 @@ func (tx *Tx) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Tx) {
 		dataToSign := fmt.Sprintf("%x\n", txCopy)
 
 		r, s, e := ecdsa.Sign(rand.Reader, &privKey, []byte(dataToSign))
-		err.ERR("signing error", e)
+		util.ERR("signing error", e)
 
 		signature := append(r.Bytes(), s.Bytes()...)
 
@@ -223,17 +223,13 @@ func GetTxFromDB(TxPoolDB *leveldb.DB) []*Tx {
 	return Txs
 }
 
-func ClearTxDB(TxPoolDB *leveldb.DB) bool {
-	return false
-}
-
 func (tx *Tx) Serialize() []byte {
 	var result bytes.Buffer
 
 	encoder := gob.NewEncoder(&result)
 	e := encoder.Encode(tx)
 
-	err.ERR("Tx Encode Error", e)
+	util.ERR("Tx Encode Error", e)
 
 	return result.Bytes()
 }
@@ -244,7 +240,7 @@ func DeserializeTx(txb []byte) *Tx {
 	decoder := gob.NewDecoder(bytes.NewReader(txb))
 	e := decoder.Decode(&tx)
 
-	err.ERR("Decode Error", e)
+	util.ERR("Decode Error", e)
 
 	return &tx
 }

@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"SuhoCoin/config"
 	"SuhoCoin/util"
 	"bytes"
 	"crypto/aes"
@@ -34,8 +35,6 @@ type Wallets struct {
 var Version string = "0"
 var AddressChecksumLen int = 4
 
-const walletFile = "suho_wallet.dat"
-
 func createHash(key string) string {
 	hasher := md5.New()
 	hasher.Write([]byte(key))
@@ -45,7 +44,7 @@ func createHash(key string) string {
 func encrypt(data []byte, passphrase string) []byte {
 	block, _ := aes.NewCipher([]byte(createHash(passphrase)))
 	gcm, e := cipher.NewGCM(block)
-	err.ERR("aes cipher gcm error", e)
+	util.ERR("aes cipher gcm error", e)
 	nonce := make([]byte, gcm.NonceSize())
 	if _, e = io.ReadFull(rand.Reader, nonce); e != nil {
 		panic(e.Error())
@@ -57,13 +56,13 @@ func encrypt(data []byte, passphrase string) []byte {
 func decrypt(data []byte, passphrase string) []byte {
 	key := []byte(createHash(passphrase))
 	block, e := aes.NewCipher(key)
-	err.ERR("aes cipher error", e)
+	util.ERR("aes cipher error", e)
 	gcm, e := cipher.NewGCM(block)
-	err.ERR("aes cipher gcm error", e)
+	util.ERR("aes cipher gcm error", e)
 	nonceSize := gcm.NonceSize()
 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
 	plaintext, e := gcm.Open(nil, nonce, ciphertext, nil)
-	err.ERR("Decrypt Error(Maybe Wrong Password)", e)
+	util.ERR("Decrypt Error(Maybe Wrong Password)", e)
 	if e != nil {
 		return []byte{}
 	}
@@ -85,7 +84,7 @@ func NewWallet() *Wallet {
 	pubkeyCurve := elliptic.P256() // P256이 가장 효율적이라 함 from https://safecurves.cr.yp.to
 
 	privKey, e := ecdsa.GenerateKey(pubkeyCurve, rand.Reader)
-	err.ERR("Key generate Error", e)
+	util.ERR("Key generate Error", e)
 
 	//	var publicKey ecdsa.PublicKey
 	public := &privKey.PublicKey
@@ -100,7 +99,7 @@ func HashPubKey(pubKey []byte) []byte {
 	publicSHA256 := sha256.Sum256(pubKey)
 	RIPEMD160Hasher := ripemd160.New()
 	_, e := RIPEMD160Hasher.Write(publicSHA256[:])
-	err.ERR("RIPEMD160 Hash Error", e)
+	util.ERR("RIPEMD160 Hash Error", e)
 	publicRIPEMD160 := RIPEMD160Hasher.Sum(nil)
 	return publicRIPEMD160
 }
@@ -159,16 +158,16 @@ func (ws Wallets) GetWallet(address string) Wallet {
 }
 
 func (ws *Wallets) LoadFromFile() error {
-	if _, e := os.Stat(walletFile); os.IsNotExist(e) {
+	if _, e := os.Stat(config.V.GetString("WalletFile")); os.IsNotExist(e) {
 		return e
 	}
 
-	fileContent, e := ioutil.ReadFile(walletFile)
-	err.ERR("read wallet file error", e)
+	fileContent, e := ioutil.ReadFile(config.V.GetString("WalletFile"))
+	util.ERR("read wallet file error", e)
 
 	fmt.Printf("Input Password: ")
 	silentPassword, e := gopass.GetPasswdMasked()
-	err.ERR("Password Input Error", e)
+	util.ERR("Password Input Error", e)
 
 	plaintext := decrypt(fileContent, string(silentPassword))
 
@@ -181,7 +180,7 @@ func (ws *Wallets) LoadFromFile() error {
 	gob.Register(elliptic.P256())
 	decoder := gob.NewDecoder(bytes.NewReader(plaintext))
 	e = decoder.Decode(&wallets)
-	err.ERR("decode wallet error", e)
+	util.ERR("decode wallet error", e)
 
 	ws.Wallets = wallets.Wallets
 
@@ -196,14 +195,14 @@ func (ws Wallets) SaveToFile() {
 	encoder := gob.NewEncoder(&content)
 
 	e := encoder.Encode(ws)
-	err.ERR("wallet encode error", e)
+	util.ERR("wallet encode error", e)
 
 	fmt.Printf("Input Password: ")
 	silentPassword, e := gopass.GetPasswdMasked()
-	err.ERR("Password Input Error", e)
+	util.ERR("Password Input Error", e)
 
 	ciphertext := encrypt(content.Bytes(), string(silentPassword))
 
-	e = ioutil.WriteFile(walletFile, ciphertext, 0644)
-	err.ERR("Write wallet file Error", e)
+	e = ioutil.WriteFile(config.V.GetString("WalletFile"), ciphertext, 0644)
+	util.ERR("Write wallet file Error", e)
 }

@@ -51,7 +51,7 @@ func (b *Block) Serialize() []byte {
 	encoder := gob.NewEncoder(&result)
 	e := encoder.Encode(b)
 
-	err.ERR("Encode Error", e)
+	util.ERR("Encode Error", e)
 
 	return result.Bytes()
 }
@@ -62,7 +62,7 @@ func DeserializeBlock(b []byte) *Block {
 	decoder := gob.NewDecoder(bytes.NewReader(b))
 	e := decoder.Decode(&block)
 
-	err.ERR("Decode Error", e)
+	util.ERR("Decode Error", e)
 
 	return &block
 }

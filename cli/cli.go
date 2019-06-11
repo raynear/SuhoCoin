@@ -27,7 +27,7 @@ func Run(bc *blockchain.Blockchain) {
 			Usage: "createwallet for use",
 			Action: func(c *cli.Context) error {
 				myWallets, e := wallet.NewWallets()
-				err.ERR("NewWallet Error", e)
+				util.ERR("NewWallet Error", e)
 				address := myWallets.CreateWallet()
 				fmt.Println("Your new address:", address)
 				myWallets.SaveToFile()
@@ -45,7 +45,7 @@ func Run(bc *blockchain.Blockchain) {
 					pubKeyHash := wallet.HashPubKey(aWallet.PublicKey)
 					fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash))
 				}
-				err.ERR("NewWallet Error", e)
+				util.ERR("NewWallet Error", e)
 				addresses := myWallets.GetAddresses()
 				for _, address := range addresses {
 					fmt.Println("Your address:", address)
@@ -72,7 +72,7 @@ func Run(bc *blockchain.Blockchain) {
 				UTXO := utxo.UTXO{Blockchain: bc}
 
 				wallets, e := wallet.NewWallets()
-				err.ERR("Load Wallet Error", e)
+				util.ERR("Load Wallet Error", e)
 
 				wallet := wallets.GetWallet(sender)
 
@@ -168,7 +168,7 @@ func Run(bc *blockchain.Blockchain) {
 			Action: func(c *cli.Context) error {
 				fmt.Println("tx detail:", c.Args())
 				aTxPayload, e := bc.DB.Get([]byte(c.Args()[0]), nil)
-				err.ERR("Get Tx Error", e)
+				util.ERR("Get Tx Error", e)
 				aTx := transaction.DeserializeTx(aTxPayload)
 				fmt.Println("tx:", aTx)
 
@@ -249,20 +249,33 @@ func Run(bc *blockchain.Blockchain) {
 			Name:  "clearDB",
 			Usage: "delete all DB",
 			Action: func(c *cli.Context) error {
-				bc.DB.Close()
-				e := os.RemoveAll("./" + config.V.GetString("Default_db"))
-				err.ERR("del error", e)
-				bc.UTXODB.Close()
-				e = os.RemoveAll("./" + config.V.GetString("Default_db") + "UTXO")
-				err.ERR("del error", e)
-				bc.TxPoolDB.Close()
-				e = os.RemoveAll("./" + config.V.GetString("Default_db") + "TxPool")
-				err.ERR("del error", e)
+				DBIter := bc.DB.NewIterator(nil, nil)
+				for DBIter.Next() {
+					key := DBIter.Key()
+					e := bc.DB.Delete(key, nil)
+					util.ERR("DB Delete Error", e)
+				}
+				DBIter.Release()
+				DBIter = bc.UTXODB.NewIterator(nil, nil)
+				for DBIter.Next() {
+					key := DBIter.Key()
+					e := bc.UTXODB.Delete(key, nil)
+					util.ERR("UTXODB Delete Error", e)
+				}
+				DBIter.Release()
+				DBIter = bc.TxPoolDB.NewIterator(nil, nil)
+				for DBIter.Next() {
+					key := DBIter.Key()
+					e := bc.TxPoolDB.Delete(key, nil)
+					util.ERR("TxPoolDB Delete Error", e)
+				}
+				DBIter.Release()
+
 				return nil
 			},
 		},
 	}
 
 	e := app.Run(os.Args)
-	err.ERR("Cli Error", e)
+	util.ERR("Cli Error", e)
 }
