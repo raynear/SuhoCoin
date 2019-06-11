@@ -14,6 +14,8 @@ func main() {
 	config.V = config.ReadConfig("suho.conf")
 	bc := blockchain.NewBlockchain()
 	defer bc.DB.Close()
+	defer bc.UTXODB.Close()
+	defer bc.TxPoolDB.Close()
 
 	cli.Run(bc)
 }

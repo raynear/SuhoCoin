@@ -78,11 +78,7 @@ func Run(bc *blockchain.Blockchain) {
 
 				tx := utxo.NewUTXOTransaction(&wallet, receiver, amount, &UTXO)
 
-				fmt.Println("TxCnt : ", len(bc.TxPool))
-
 				bc.AddTx(tx)
-
-				fmt.Println("TxCnt : ", len(bc.TxPool))
 
 				return nil
 			},
@@ -131,8 +127,8 @@ func Run(bc *blockchain.Blockchain) {
 			Usage:   "addblock 'a send 1 to b'",
 			Action: func(c *cli.Context) error {
 				fmt.Println("addblock:", c.Args())
-				fmt.Println("TxCnt", len(bc.TxPool))
 				bc.AddBlock(c.Args().First())
+
 				UTXO := utxo.UTXO{Blockchain: bc}
 				UTXO.Reindex()
 
@@ -143,7 +139,10 @@ func Run(bc *blockchain.Blockchain) {
 			Name:  "pendingtx",
 			Usage: "Show pending tx",
 			Action: func(c *cli.Context) error {
-				for _, aTx := range bc.TxPool {
+				iter := bc.TxPoolDB.NewIterator(nil, nil)
+				for iter.Next() {
+					value := iter.Value()
+					aTx := transaction.DeserializeTx(value)
 					aTx.Print()
 				}
 

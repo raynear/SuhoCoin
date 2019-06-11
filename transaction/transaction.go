@@ -16,6 +16,7 @@ import (
 	"math/big"
 
 	"github.com/btcsuite/btcutil/base58"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type TXInput struct {
@@ -206,6 +207,24 @@ func (tx *Tx) SetID() {
 	hash := sha256.Sum256(txPayload)
 
 	tx.ID = hash[:]
+}
+
+func GetTxFromDB(TxPoolDB *leveldb.DB) []*Tx {
+	var Txs []*Tx
+	iter := TxPoolDB.NewIterator(nil, nil)
+
+	for iter.Next() {
+		value := iter.Value()
+
+		NewTx := DeserializeTx(value)
+		Txs = append(Txs, NewTx)
+	}
+
+	return Txs
+}
+
+func ClearTxDB(TxPoolDB *leveldb.DB) bool {
+	return false
 }
 
 func (tx *Tx) Serialize() []byte {

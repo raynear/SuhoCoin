@@ -20,7 +20,6 @@ type Blockchain struct {
 	DB            *leveldb.DB
 	UTXODB        *leveldb.DB
 	TxPoolDB      *leveldb.DB
-	TxPool        []*transaction.Tx
 }
 
 func GenesisBlock(coinbase *transaction.Tx) *block.Block {
@@ -51,7 +50,7 @@ func NewBlockchain() *Blockchain {
 	txpool_db, e := leveldb.OpenFile(config.V.GetString("Default_db")+"_TxPool", nil)
 	err.ERR("NewBlockchain open DB Error", e)
 
-	bc := Blockchain{LastBlockHash, db, utxo_db, txpool_db, nil}
+	bc := Blockchain{LastBlockHash, db, utxo_db, txpool_db}
 
 	return &bc
 }
@@ -70,9 +69,9 @@ func (bc *Blockchain) AddBlock(data string) *block.Block {
 	lastBlock := block.DeserializeBlock(lastBlockByte)
 
 	cbtx := transaction.CoinbaseTx(config.V.GetString("Coinbase"), config.V.GetString("Coinbase"))
-	//	bc.DB.Put(append([]byte("t"), cbtx.ID...), cbtx.Serialize(), nil)
-	// Todo : txpooldb에서 읽어와서 리스트로 만들어서 findanswer에 던져주기
-	newBlock := POW.FindAnswer(data, lastHash, lastBlock.Header.Height+1, config.V.GetInt64("TargetBits"), []byte{}, append(bc.TxPool, cbtx))
+	bc.AddTx(cbtx)
+	TXs := transaction.GetTxFromDB(bc.TxPoolDB)
+	newBlock := POW.FindAnswer(data, lastHash, lastBlock.Header.Height+1, config.V.GetInt64("TargetBits"), []byte{}, TXs)
 	newBlock.Print()
 
 	e = bc.DB.Put(append([]byte("b"), newBlock.Header.Hash...), newBlock.Serialize(), nil)
@@ -82,13 +81,15 @@ func (bc *Blockchain) AddBlock(data string) *block.Block {
 	err.ERR("new block hash put in db(l) Error", e)
 	bc.LastBlockHash = newBlock.Header.Hash
 
+	// TxPoolDB Delete
+	transaction.ClearTxDB(bc.TxPoolDB)
+
 	return newBlock
 }
 
 func (bc *Blockchain) AddTx(Tx *transaction.Tx) {
 	fmt.Println("Add Tx")
 	Tx.Print()
-	bc.TxPool = append(bc.TxPool, Tx)
 	bc.TxPoolDB.Put(Tx.ID, Tx.Serialize(), nil)
 }
 
