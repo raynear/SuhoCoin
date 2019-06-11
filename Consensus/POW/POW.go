@@ -58,7 +58,7 @@ func (pow *POW) Run() (int64, []byte) {
 	nonce = 0
 
 	fmt.Printf("Mining Block : %s\n", pow.block.Data)
-	pow.block.Header.MerkleRoot = pow.block.NewTxMerkleTree()
+	pow.block.SetTxMerkleTree()
 
 	for nonce < math.MaxInt64 {
 		data := pow.prepareData(nonce)
@@ -79,7 +79,7 @@ func (pow *POW) Run() (int64, []byte) {
 }
 
 func FindAnswer(data string, prevBlockHash []byte, height int64, difficulty int64, merkleRoot []byte, TXs []*transaction.Tx) *block.Block {
-	block := &block.Block{Header: blockheader.BlockHeader{Version: config.V.GetInt64("BlockchainVersion"), Hash: []byte{}, PrevBlockHash: prevBlockHash, Height: height, TimeStamp: time.Now().Unix(), Difficulty: difficulty, Nonce: 0, MerkleRoot: merkleRoot}, TxCnt: 0, Transactions: TXs, Data: data}
+	block := &block.Block{Header: blockheader.BlockHeader{Version: config.V.GetInt64("BlockchainVersion"), Hash: []byte{}, PrevBlockHash: prevBlockHash, Height: height, TimeStamp: time.Now().Unix(), Difficulty: difficulty, Nonce: 0, MerkleRoot: merkleRoot}, TxCnt: int64(len(TXs)), Transactions: TXs, Data: data}
 
 	pow := NewPOW(block)
 	nonce, hash := pow.Run()

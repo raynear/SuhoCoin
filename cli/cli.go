@@ -2,6 +2,7 @@ package cli
 
 import (
 	"SuhoCoin/Consensus/POW"
+	utxo "SuhoCoin/UTXO"
 	"SuhoCoin/block"
 	"SuhoCoin/blockchain"
 	"SuhoCoin/config"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/urfave/cli"
 )
 
@@ -24,8 +26,81 @@ func Run(bc *blockchain.Blockchain) {
 			Name:  "createwallet",
 			Usage: "createwallet for use",
 			Action: func(c *cli.Context) error {
-				myWallet := wallet.NewWallet()
-				fmt.Println("Your new address:", string(myWallet.GetAddress()))
+				myWallets, e := wallet.NewWallets()
+				err.ERR("NewWallet Error", e)
+				address := myWallets.CreateWallet()
+				fmt.Println("Your new address:", address)
+				myWallets.SaveToFile()
+				fmt.Println("Your new address:", address)
+
+				return nil
+			},
+		},
+		{
+			Name:  "listaddress",
+			Usage: "listaddress",
+			Action: func(c *cli.Context) error {
+				myWallets, e := wallet.NewWallets()
+				for _, aWallet := range myWallets.Wallets {
+					pubKeyHash := wallet.HashPubKey(aWallet.PublicKey)
+					fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash))
+				}
+				err.ERR("NewWallet Error", e)
+				addresses := myWallets.GetAddresses()
+				for _, address := range addresses {
+					fmt.Println("Your address:", address)
+				}
+
+				return nil
+			},
+		},
+		{
+			Name:  "address2hash",
+			Usage: "listaddress",
+			Action: func(c *cli.Context) error {
+				return nil
+			},
+		},
+		{
+			Name:  "send",
+			Usage: "send 'sender address' 'receiver address' amount",
+			Action: func(c *cli.Context) error {
+				sender := c.Args()[0]
+				receiver := c.Args()[1]
+				amount, e := strconv.Atoi(c.Args()[2])
+
+				UTXO := utxo.UTXO{Blockchain: bc}
+
+				wallets, e := wallet.NewWallets()
+				err.ERR("Load Wallet Error", e)
+
+				wallet := wallets.GetWallet(sender)
+
+				tx := utxo.NewUTXOTransaction(&wallet, receiver, amount, &UTXO)
+
+				fmt.Println("TxCnt : ", len(bc.TxPool))
+
+				bc.AddTx(tx)
+
+				fmt.Println("TxCnt : ", len(bc.TxPool))
+
+				return nil
+			},
+		},
+		{
+			Name:  "setcoinbase",
+			Usage: "setcoinbase 'address'",
+			Action: func(c *cli.Context) error {
+				/////////////
+				// NOT WORK
+				/////////////
+				address := c.Args()[0]
+				fmt.Println("address:", address)
+
+				config.V.Set("Coinbase", address)
+				config.V.WriteConfigAs("suho.conf")
+
+				fmt.Printf("NewCoinbase is %s\n", address)
 
 				return nil
 			},
@@ -35,8 +110,11 @@ func Run(bc *blockchain.Blockchain) {
 			Usage: "getbalance 'address'",
 			Action: func(c *cli.Context) error {
 				address := c.Args()[0]
+				pubKeyHash := base58.Decode(address)
+				pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 				balance := 0
-				UTXOs := bc.FindUTXO(address)
+				UTXO := utxo.UTXO{Blockchain: bc}
+				UTXOs := UTXO.FindUTXO(pubKeyHash)
 
 				for _, out := range UTXOs {
 					balance += out.Value
@@ -53,7 +131,33 @@ func Run(bc *blockchain.Blockchain) {
 			Usage:   "addblock 'a send 1 to b'",
 			Action: func(c *cli.Context) error {
 				fmt.Println("addblock:", c.Args())
+				fmt.Println("TxCnt", len(bc.TxPool))
 				bc.AddBlock(c.Args().First())
+				UTXO := utxo.UTXO{Blockchain: bc}
+				UTXO.Reindex()
+
+				return nil
+			},
+		},
+		{
+			Name:  "pendingtx",
+			Usage: "Show pending tx",
+			Action: func(c *cli.Context) error {
+				for _, aTx := range bc.TxPool {
+					aTx.Print()
+				}
+
+				return nil
+			},
+		},
+		{
+			Name:    "reindex",
+			Aliases: []string{"re"},
+			Usage:   "reindex utxo db",
+			Action: func(c *cli.Context) error {
+				UTXO := utxo.UTXO{Blockchain: bc}
+				// Reindex => update로 바꿔야 함.
+				UTXO.Reindex()
 
 				return nil
 			},
@@ -125,11 +229,35 @@ func Run(bc *blockchain.Blockchain) {
 			},
 		},
 		{
+			Name:  "printutxo",
+			Usage: "print all utxo on db",
+			Action: func(c *cli.Context) error {
+				iter := bc.UTXODB.NewIterator(nil, nil)
+				for iter.Next() {
+					key := iter.Key()
+					value := iter.Value()
+					fmt.Printf("Key: %x | Value: ", key)
+					TXOs := transaction.DeserializeOutputs(value)
+					for _, aOut := range TXOs.Outputs {
+						aOut.Print()
+					}
+				}
+
+				return nil
+			},
+		},
+		{
 			Name:  "clearDB",
 			Usage: "delete all DB",
 			Action: func(c *cli.Context) error {
 				bc.DB.Close()
 				e := os.RemoveAll("./" + config.V.GetString("Default_db"))
+				err.ERR("del error", e)
+				bc.UTXODB.Close()
+				e = os.RemoveAll("./" + config.V.GetString("Default_db") + "UTXO")
+				err.ERR("del error", e)
+				bc.TxPoolDB.Close()
+				e = os.RemoveAll("./" + config.V.GetString("Default_db") + "TxPool")
 				err.ERR("del error", e)
 				return nil
 			},

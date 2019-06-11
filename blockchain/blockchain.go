@@ -6,7 +6,10 @@ import (
 	"SuhoCoin/config"
 	"SuhoCoin/transaction"
 	"SuhoCoin/util"
+	"bytes"
+	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -15,10 +18,13 @@ import (
 type Blockchain struct {
 	LastBlockHash []byte
 	DB            *leveldb.DB
+	UTXODB        *leveldb.DB
+	TxPoolDB      *leveldb.DB
+	TxPool        []*transaction.Tx
 }
 
 func GenesisBlock(coinbase *transaction.Tx) *block.Block {
-	return POW.FindAnswer("GenesisBlock", []byte{}, int64(0), int64(0), []byte{}, []*transaction.Tx{coinbase})
+	return POW.FindAnswer("GenesisBlock", []byte{}, int64(0), config.V.GetInt64("TargetBits"), []byte{}, []*transaction.Tx{coinbase})
 }
 
 func NewBlockchain() *Blockchain {
@@ -28,7 +34,7 @@ func NewBlockchain() *Blockchain {
 
 	LastBlockHash, e = db.Get([]byte("l"), nil)
 	if e != nil {
-		cbtx := transaction.CoinbaseTx([]byte(config.V.GetString("Coinbase")), "GENESIS of SuhoCoin")
+		cbtx := transaction.CoinbaseTx(config.V.GetString("Coinbase"), "GENESIS of SuhoCoin")
 		db.Put(append([]byte("t"), cbtx.ID...), cbtx.Serialize(), nil)
 		genesis := GenesisBlock(cbtx)
 		genesis.Print()
@@ -39,12 +45,18 @@ func NewBlockchain() *Blockchain {
 		LastBlockHash = genesis.Header.Hash
 	}
 
-	bc := Blockchain{LastBlockHash, db}
+	utxo_db, e := leveldb.OpenFile(config.V.GetString("Default_db")+"_UTXO", nil)
+	err.ERR("NewBlockchain open DB Error", e)
+
+	txpool_db, e := leveldb.OpenFile(config.V.GetString("Default_db")+"_TxPool", nil)
+	err.ERR("NewBlockchain open DB Error", e)
+
+	bc := Blockchain{LastBlockHash, db, utxo_db, txpool_db, nil}
 
 	return &bc
 }
 
-func (bc *Blockchain) AddBlock(data string) {
+func (bc *Blockchain) AddBlock(data string) *block.Block {
 	lastHash, e := bc.DB.Get([]byte("l"), nil)
 	if e != nil {
 		fmt.Println("Blockchain not in DB")
@@ -57,9 +69,10 @@ func (bc *Blockchain) AddBlock(data string) {
 	}
 	lastBlock := block.DeserializeBlock(lastBlockByte)
 
-	cbtx := transaction.CoinbaseTx([]byte(config.V.GetString("Coinbase")), "")
-	bc.DB.Put(append([]byte("t"), cbtx.ID...), cbtx.Serialize(), nil)
-	newBlock := POW.FindAnswer(data, lastHash, lastBlock.Header.Height+1, 0, []byte{}, []*transaction.Tx{cbtx})
+	cbtx := transaction.CoinbaseTx(config.V.GetString("Coinbase"), config.V.GetString("Coinbase"))
+	//	bc.DB.Put(append([]byte("t"), cbtx.ID...), cbtx.Serialize(), nil)
+	// Todo : txpooldb에서 읽어와서 리스트로 만들어서 findanswer에 던져주기
+	newBlock := POW.FindAnswer(data, lastHash, lastBlock.Header.Height+1, config.V.GetInt64("TargetBits"), []byte{}, append(bc.TxPool, cbtx))
 	newBlock.Print()
 
 	e = bc.DB.Put(append([]byte("b"), newBlock.Header.Hash...), newBlock.Serialize(), nil)
@@ -68,72 +81,107 @@ func (bc *Blockchain) AddBlock(data string) {
 	e = bc.DB.Put([]byte("l"), newBlock.Header.Hash, nil)
 	err.ERR("new block hash put in db(l) Error", e)
 	bc.LastBlockHash = newBlock.Header.Hash
+
+	return newBlock
 }
 
-func (bc *Blockchain) FindUnspentTransactions(address string) []transaction.Tx {
-	var UTXO []transaction.Tx
-	STXO := make(map[string][]int)
+func (bc *Blockchain) AddTx(Tx *transaction.Tx) {
+	fmt.Println("Add Tx")
+	Tx.Print()
+	bc.TxPool = append(bc.TxPool, Tx)
+	bc.TxPoolDB.Put(Tx.ID, Tx.Serialize(), nil)
+}
+
+func (bc *Blockchain) FindTransaction(ID []byte) (transaction.Tx, error) {
 	bci := bc.Iterator()
-
-	//    fmt.Println(bci.currentHash)
-
-	//    ttt, e := bci.DB.Get(bci.currentHash, nil)
-	//    err.ERR("er?", e)
-
-	//    newBlock := block.DeserializeBlock(ttt)
-
-	//    fmt.Println(newBlock.Header.PrevBlockHash)
 
 	for {
 		block := bci.Next()
 
-		if block.Header.PrevBlockHash == nil {
-			return UTXO
+		for _, tx := range block.Transactions {
+			if bytes.Compare(tx.ID, ID) == 0 {
+				return *tx, nil
+			}
 		}
 
+		if len(block.Header.PrevBlockHash) == 0 {
+			break
+		}
+	}
+
+	return transaction.Tx{}, errors.New("Tx Not Found")
+}
+
+func (bc *Blockchain) FindUTXO() map[string]transaction.TXOutputs {
+	UTXO := make(map[string]transaction.TXOutputs)
+	spentTXOs := make(map[string][]int)
+	bci := bc.Iterator()
+
+	for {
+		block := bci.Next()
+
 		for _, tx := range block.Transactions {
-			txid := hex.EncodeToString(tx.ID)
+			txID := hex.EncodeToString(tx.ID)
 
 		Outputs:
 			for outIdx, out := range tx.Vout {
-				if STXO[txid] != nil {
-					for _, spentOut := range STXO[txid] {
-						if spentOut == outIdx {
+				// Was the output spent?
+				if spentTXOs[txID] != nil {
+					for _, spentOutIdx := range spentTXOs[txID] {
+						if spentOutIdx == outIdx {
 							continue Outputs
 						}
 					}
 				}
-				if out.CanBeUnlockedWith(address) {
-					UTXO = append(UTXO, *tx)
-				}
+
+				outs := UTXO[txID]
+				outs.Outputs = append(outs.Outputs, out)
+				UTXO[txID] = outs
 			}
 
 			if tx.IsCoinbase() == false {
 				for _, in := range tx.Vin {
-					if in.CanUnlockOutputWith(address) {
-						inTxID := hex.EncodeToString(in.Txid)
-						STXO[inTxID] = append(STXO[inTxID], in.Vout)
-					}
+					inTxID := hex.EncodeToString(in.TxID)
+					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
 				}
 			}
 		}
-	}
-}
 
-func (bc *Blockchain) FindUTXO(address string) []transaction.TXOutput {
-	var UTXO []transaction.TXOutput
-
-	unspentTransactions := bc.FindUnspentTransactions(address)
-	fmt.Println("utx cnt :", len(unspentTransactions))
-	for _, tx := range unspentTransactions {
-		for _, out := range tx.Vout {
-			if out.CanBeUnlockedWith(address) {
-				UTXO = append(UTXO, out)
-			}
+		if len(block.Header.PrevBlockHash) == 0 {
+			break
 		}
 	}
 
 	return UTXO
+}
+
+func (bc *Blockchain) SignTransaction(tx *transaction.Tx, privKey ecdsa.PrivateKey) {
+	prevTXs := make(map[string]transaction.Tx)
+
+	for _, vin := range tx.Vin {
+		prevTX, e := bc.FindTransaction(vin.TxID)
+		err.ERR("FindTransaction Error", e)
+
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
+
+	tx.Sign(privKey, prevTXs)
+}
+
+func (bc *Blockchain) VerifyTransaction(tx *transaction.Tx) bool {
+	if tx.IsCoinbase() {
+		return true
+	}
+
+	prevTXs := make(map[string]transaction.Tx)
+
+	for _, vin := range tx.Vin {
+		prevTX, e := bc.FindTransaction(vin.TxID)
+		err.ERR("FindTransaction Error", e)
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
+
+	return tx.Verify(prevTXs)
 }
 
 type BlockchainIterator struct {

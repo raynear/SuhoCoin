@@ -27,10 +27,14 @@ func (b *Block) Print() {
 	fmt.Printf("Nonce(%d) ", b.Header.Nonce)
 	fmt.Printf("MerkleRoot(%x) ", b.Header.MerkleRoot)
 	fmt.Printf("TxCnt(%d) ", b.TxCnt)
+	for i := 0; i < int(b.TxCnt); i++ {
+		aTx := b.Transactions[i]
+		aTx.Print()
+	}
 	fmt.Printf("Data(%s)\n", b.Data)
 }
 
-func (b *Block) NewTxMerkleTree() []byte {
+func (b *Block) SetTxMerkleTree() {
 	var transactions [][]byte
 
 	for _, tx := range b.Transactions {
@@ -38,7 +42,7 @@ func (b *Block) NewTxMerkleTree() []byte {
 	}
 	mTree := merkletree.NewMerkleTree(transactions)
 
-	return mTree.Root.Data
+	b.Header.MerkleRoot = mTree.Root.Data
 }
 
 func (b *Block) Serialize() []byte {

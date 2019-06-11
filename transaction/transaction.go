@@ -5,19 +5,26 @@ import (
 	"SuhoCoin/util"
 	"SuhoCoin/wallet"
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
+	"log"
+	"math/big"
 
 	"github.com/btcsuite/btcutil/base58"
 )
 
 type TXInput struct {
-	Txid      []byte
+	TxID      []byte
 	Vout      int
-	ScriptSig string
 	Signature []byte
 	PubKey    []byte
+
+	ScriptSig string
 	Data      string
 }
 
@@ -26,19 +33,26 @@ func (in *TXInput) UsesKey(pubKeyHash []byte) bool {
 	return bytes.Compare(lockingHash, pubKeyHash) == 0
 }
 
-func (in *TXInput) CanUnlockOutputWith(unlockingData string) bool {
-	return in.ScriptSig == unlockingData
-}
-
 type TXOutput struct {
-	Value        int
-	PubKeyHash   []byte
+	Value      int
+	PubKeyHash []byte
+
 	ScriptPubKey string
 }
 
+func (out *TXOutput) Print() {
+	fmt.Println(" aVout")
+	fmt.Printf("  Value(%d) ", out.Value)
+	fmt.Printf("PubKeyHash(%x) ", out.PubKeyHash)
+	fmt.Printf("ScriptPubKey(%s) ", out.ScriptPubKey)
+	fmt.Println()
+}
+
 func (out *TXOutput) Lock(address []byte) {
-	pubKeyHash := base58.Decode(string(address))
+	fmt.Println("address : ", string(address[:]))
+	pubKeyHash := base58.Decode(string(address[:]))
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+	fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash[:]))
 	out.PubKeyHash = pubKeyHash
 }
 
@@ -46,8 +60,11 @@ func (out *TXOutput) IsLockedWithKey(pubKeyHash []byte) bool {
 	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
 }
 
-func (out *TXOutput) CanBeUnlockedWith(unlockingData string) bool {
-	return out.ScriptPubKey == unlockingData
+func NewTXO(value int, address string) *TXOutput {
+	txo := &TXOutput{value, nil, ""}
+	txo.Lock([]byte(address))
+
+	return txo
 }
 
 type Tx struct {
@@ -57,25 +74,114 @@ type Tx struct {
 }
 
 func (tx *Tx) IsCoinbase() bool {
-	return false
+	return len(tx.Vin) == 1 && len(tx.Vin[0].TxID) == 0 && tx.Vin[0].Vout == -1
 }
 
-func CoinbaseTx(to []byte, data string) *Tx {
+func CoinbaseTx(to string, data string) *Tx {
 	if data == "" {
-		data = fmt.Sprintf("Reward to '%s'", to)
+		data = fmt.Sprintf("Coinbase Reward to '%s'", to)
 	}
-	txin := TXInput{Txid: []byte{}, Vout: -1, Signature: []byte{}, PubKey: []byte{}, Data: data}
-	txout := TXOutput{Value: config.V.GetInt("Reward"), PubKeyHash: to}
+
+	txin := TXInput{TxID: []byte{}, Vout: -1, Signature: []byte{}, PubKey: []byte{}, Data: data}
+	txout := TXOutput{Value: config.V.GetInt("Reward"), PubKeyHash: nil, ScriptPubKey: string(to)}
+	txout.Lock([]byte(to))
 	tx := Tx{ID: nil, Vin: []TXInput{txin}, Vout: []TXOutput{txout}}
 	tx.SetID()
 	return &tx
 }
 
+func (tx *Tx) TrimmedCopy() Tx {
+	var inputs []TXInput
+	var outputs []TXOutput
+
+	for _, vin := range tx.Vin {
+		inputs = append(inputs, TXInput{vin.TxID, vin.Vout, nil, nil, "", ""})
+	}
+
+	for _, vout := range tx.Vout {
+		outputs = append(outputs, TXOutput{vout.Value, vout.PubKeyHash, ""})
+	}
+
+	return Tx{tx.ID, inputs, outputs}
+}
+
+func (tx *Tx) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Tx) {
+	if tx.IsCoinbase() {
+		return
+	}
+
+	for _, vin := range tx.Vin {
+		if prevTXs[hex.EncodeToString(vin.TxID)].ID == nil {
+			log.Panic("ERROR: Previous tx is not correct")
+		}
+	}
+
+	txCopy := tx
+
+	for inID, vin := range tx.Vin {
+		prevTx := prevTXs[hex.EncodeToString(vin.TxID)]
+		txCopy.Vin[inID].Signature = nil
+		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
+
+		dataToSign := fmt.Sprintf("%x\n", txCopy)
+
+		r, s, e := ecdsa.Sign(rand.Reader, &privKey, []byte(dataToSign))
+		err.ERR("signing error", e)
+
+		signature := append(r.Bytes(), s.Bytes()...)
+
+		tx.Vin[inID].Signature = signature
+		txCopy.Vin[inID].PubKey = nil
+	}
+}
+
+func (tx *Tx) Verify(prevTXs map[string]Tx) bool {
+	if tx.IsCoinbase() {
+		return true
+	}
+
+	for _, vin := range tx.Vin {
+		if prevTXs[hex.EncodeToString(vin.TxID)].ID == nil {
+			log.Panic("ERROR: Previous tx is not correct")
+		}
+	}
+
+	txCopy := tx
+
+	for inID, vin := range tx.Vin {
+		prevTx := prevTXs[hex.EncodeToString(vin.TxID)]
+		txCopy.Vin[inID].Signature = nil
+		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
+
+		r := big.Int{}
+		s := big.Int{}
+		sigLen := len(vin.Signature)
+		r.SetBytes(vin.Signature[:(sigLen / 2)])
+		s.SetBytes(vin.Signature[(sigLen / 2):])
+
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(vin.PubKey)
+		x.SetBytes(vin.PubKey[:(keyLen / 2)])
+		y.SetBytes(vin.PubKey[(keyLen / 2):])
+
+		dataToVerify := fmt.Sprintf("%x\n", txCopy)
+
+		rawPubKey := ecdsa.PublicKey{Curve: elliptic.P256(), X: &x, Y: &y}
+		if ecdsa.Verify(&rawPubKey, []byte(dataToVerify), &r, &s) == false {
+			return false
+		}
+		txCopy.Vin[inID].PubKey = nil
+	}
+
+	return true
+}
+
 func (tx *Tx) Print() {
 	fmt.Printf("ID(%x)\n", tx.ID)
 	for _, aVin := range tx.Vin {
-		fmt.Println("aVin")
-		fmt.Printf("  Txid(%x) ", aVin.Txid)
+		fmt.Println(" aVin")
+		fmt.Printf("  TxID(%x) ", aVin.TxID)
 		fmt.Printf("Vout(%d) ", aVin.Vout)
 		fmt.Printf("ScriptSig(%s) ", aVin.ScriptSig)
 		fmt.Printf("Signature(%x) ", aVin.Signature)
@@ -84,7 +190,7 @@ func (tx *Tx) Print() {
 		fmt.Println()
 	}
 	for _, aVout := range tx.Vout {
-		fmt.Println("aVout")
+		fmt.Println(" aVout")
 		fmt.Printf("  Value(%d) ", aVout.Value)
 		fmt.Printf("PubKeyHash(%x) ", aVout.PubKeyHash)
 		fmt.Printf("ScriptPubKey(%s) ", aVout.ScriptPubKey)
@@ -122,4 +228,32 @@ func DeserializeTx(txb []byte) *Tx {
 	err.ERR("Decode Error", e)
 
 	return &tx
+}
+
+type TXOutputs struct {
+	Outputs []TXOutput
+}
+
+func (outs TXOutputs) Serialize() []byte {
+	var buff bytes.Buffer
+
+	enc := gob.NewEncoder(&buff)
+	err := enc.Encode(outs)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return buff.Bytes()
+}
+
+func DeserializeOutputs(data []byte) TXOutputs {
+	var outputs TXOutputs
+
+	dec := gob.NewDecoder(bytes.NewReader(data))
+	err := dec.Decode(&outputs)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return outputs
 }
