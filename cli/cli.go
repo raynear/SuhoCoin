@@ -60,9 +60,11 @@ func Run(bc *blockchain.Blockchain) {
 			},
 		},
 		{
-			Name:  "address2hash",
-			Usage: "listaddress",
+			Name: "address2hash",
 			Action: func(c *cli.Context) error {
+				address := c.Args()[0]
+				PubKeyHash := wallet.GetPubKeyHashFromAddress(address)
+				fmt.Println("PubKeyHash", base58.Encode(PubKeyHash))
 				return nil
 			},
 		},
@@ -78,14 +80,23 @@ func Run(bc *blockchain.Blockchain) {
 
 				EncryptedWallet := wallet.LoadFromFile(sender)
 
+				address := []byte(sender)
+				fmt.Println("address : ", string(address[:]))
+				pubKeyHash := base58.Decode(string(address[:]))
+				pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+				fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash[:]))
+
 				fmt.Printf("Input Password: ")
 				silentPassword, e := gopass.GetPasswdMasked()
 				util.ERR("Password Input Error", e)
 
 				myWallet := wallet.DecryptWallet(EncryptedWallet, string(silentPassword))
 
-				tx := utxo.NewUTXOTransaction(&myWallet, receiver, amount, &UTXO)
+				hashedpubkey := wallet.HashPubKey(myWallet.PublicKey)
 
+				fmt.Println("HashedPubKey", base58.Encode(hashedpubkey))
+
+				tx := utxo.NewUTXOTransaction(&myWallet, receiver, amount, &UTXO)
 				bc.AddTx(tx)
 
 				return nil

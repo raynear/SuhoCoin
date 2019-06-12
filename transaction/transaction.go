@@ -44,7 +44,7 @@ type TXOutput struct {
 func (out *TXOutput) Print() {
 	fmt.Println(" aVout")
 	fmt.Printf("  Value(%d) ", out.Value)
-	fmt.Printf("PubKeyHash(%x) ", out.PubKeyHash)
+	fmt.Printf("PubKeyHash(%s) ", base58.Encode(out.PubKeyHash))
 	fmt.Printf("ScriptPubKey(%s) ", out.ScriptPubKey)
 	fmt.Println()
 }
@@ -52,7 +52,7 @@ func (out *TXOutput) Print() {
 func (out *TXOutput) Lock(address []byte) {
 	fmt.Println("address : ", string(address[:]))
 	pubKeyHash := base58.Decode(string(address[:]))
-	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+	pubKeyHash = pubKeyHash[2 : len(pubKeyHash)-4]
 	fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash[:]))
 	out.PubKeyHash = pubKeyHash
 }
@@ -185,7 +185,7 @@ func (tx *Tx) Print() {
 		fmt.Printf("  TxID(%x) ", aVin.TxID)
 		fmt.Printf("Vout(%d) ", aVin.Vout)
 		fmt.Printf("ScriptSig(%s) ", aVin.ScriptSig)
-		fmt.Printf("Signature(%x) ", aVin.Signature)
+		fmt.Printf("Signature(%s) ", base58.Encode(aVin.Signature))
 		fmt.Printf("PubKey(%x) ", aVin.PubKey)
 		fmt.Printf("Data(%s) ", aVin.Data)
 		fmt.Println()
@@ -193,7 +193,7 @@ func (tx *Tx) Print() {
 	for _, aVout := range tx.Vout {
 		fmt.Println(" aVout")
 		fmt.Printf("  Value(%d) ", aVout.Value)
-		fmt.Printf("PubKeyHash(%x) ", aVout.PubKeyHash)
+		fmt.Printf("PubKeyHash(%s) ", base58.Encode(aVout.PubKeyHash))
 		fmt.Printf("ScriptPubKey(%s) ", aVout.ScriptPubKey)
 		fmt.Println()
 	}

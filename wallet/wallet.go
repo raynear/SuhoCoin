@@ -88,6 +88,8 @@ func NewWallet() string {
 	wallet := Wallet{PrivateKey: *privKey, PublicKey: pubKey}
 
 	address := wallet.GetAddress()
+	fmt.Println("NewWallet")
+	fmt.Println("Address : ", address, " is saved as file")
 
 	fmt.Printf("Input Password: ")
 	silentPassword, e := gopass.GetPasswdMasked()
@@ -96,9 +98,17 @@ func NewWallet() string {
 	EncryptedWallet := wallet.EncryptWallet(string(silentPassword))
 
 	SaveToFile(address, EncryptedWallet)
+	EncryptedWallet2 := LoadFromFile(address)
+	NewWallet2 := DecryptWallet(EncryptedWallet2, string(silentPassword))
 
-	fmt.Println("NewWallet")
-	fmt.Println("Address : ", address, " is saved as file")
+	fmt.Println("NewWallet2")
+	fmt.Println("W PubKey2 : ", base58.Encode(NewWallet2.PublicKey))
+
+	address2 := NewWallet2.GetAddress()
+
+	fmt.Println("Address2 : ", address2, " is load from file")
+	HashPubKey2 := HashPubKey(NewWallet2.PublicKey)
+	fmt.Println("HashPubKey2 :", base58.Encode(HashPubKey2))
 
 	return address
 }
@@ -169,6 +179,14 @@ func (w Wallet) GetAddress() string {
 	fmt.Println("W Address : ", address)
 
 	return address
+}
+
+func GetPubKeyHashFromAddress(address string) []byte {
+	fmt.Println("address : ", address)
+	pubKeyHash := base58.Decode(address)
+	pubKeyHash = pubKeyHash[2 : len(pubKeyHash)-4]
+	fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash[:]))
+	return pubKeyHash
 }
 
 func LoadFromFile(WalletFileName string) []byte {
