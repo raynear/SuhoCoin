@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -71,6 +72,13 @@ func (bc *Blockchain) AddBlock(data string) *block.Block {
 	cbtx := transaction.CoinbaseTx(config.V.GetString("Coinbase"), config.V.GetString("Coinbase"))
 	bc.AddTx(cbtx)
 	TXs := transaction.GetTxFromDB(bc.TxPoolDB)
+
+	for _, aTx := range TXs {
+		if bc.VerifyTransaction(aTx) != true {
+			aTx.Print()
+			log.Panic("Invalid Transaction")
+		}
+	}
 	newBlock := POW.FindAnswer(data, lastHash, lastBlock.Header.Height+1, config.V.GetInt64("TargetBits"), []byte{}, TXs)
 	newBlock.Print()
 
@@ -173,13 +181,19 @@ func (bc *Blockchain) VerifyTransaction(tx *transaction.Tx) bool {
 		return true
 	}
 
+	fmt.Printf("1")
+
 	prevTXs := make(map[string]transaction.Tx)
 
+	fmt.Printf("2")
+
 	for _, vin := range tx.Vin {
+		fmt.Printf("3")
 		prevTX, e := bc.FindTransaction(vin.TxID)
 		util.ERR("FindTransaction Error", e)
 		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}
+	fmt.Printf("4")
 
 	return tx.Verify(prevTXs)
 }

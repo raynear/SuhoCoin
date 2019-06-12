@@ -51,8 +51,7 @@ func (out *TXOutput) Print() {
 
 func (out *TXOutput) Lock(address []byte) {
 	fmt.Println("address : ", string(address[:]))
-	pubKeyHash := base58.Decode(string(address[:]))
-	pubKeyHash = pubKeyHash[2 : len(pubKeyHash)-4]
+	pubKeyHash := wallet.GetPubKeyHashFromAddress(string(address))
 	fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash[:]))
 	out.PubKeyHash = pubKeyHash
 }
@@ -117,7 +116,7 @@ func (tx *Tx) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Tx) {
 		}
 	}
 
-	txCopy := tx
+	txCopy := tx.TrimmedCopy()
 
 	for inID, vin := range tx.Vin {
 		prevTx := prevTXs[hex.EncodeToString(vin.TxID)]
@@ -141,18 +140,24 @@ func (tx *Tx) Verify(prevTXs map[string]Tx) bool {
 		return true
 	}
 
+	fmt.Printf("a")
+
 	for _, vin := range tx.Vin {
 		if prevTXs[hex.EncodeToString(vin.TxID)].ID == nil {
 			log.Panic("ERROR: Previous tx is not correct")
 		}
 	}
 
-	txCopy := tx
+	fmt.Printf("b")
+
+	txCopy := tx.TrimmedCopy()
 
 	for inID, vin := range tx.Vin {
 		prevTx := prevTXs[hex.EncodeToString(vin.TxID)]
 		txCopy.Vin[inID].Signature = nil
 		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
+
+		fmt.Printf("c")
 
 		r := big.Int{}
 		s := big.Int{}
@@ -160,20 +165,37 @@ func (tx *Tx) Verify(prevTXs map[string]Tx) bool {
 		r.SetBytes(vin.Signature[:(sigLen / 2)])
 		s.SetBytes(vin.Signature[(sigLen / 2):])
 
+		fmt.Printf("d")
+
 		x := big.Int{}
 		y := big.Int{}
 		keyLen := len(vin.PubKey)
 		x.SetBytes(vin.PubKey[:(keyLen / 2)])
 		y.SetBytes(vin.PubKey[(keyLen / 2):])
 
+		fmt.Printf("e")
+
 		dataToVerify := fmt.Sprintf("%x\n", txCopy)
 
+		fmt.Println("f")
+
 		rawPubKey := ecdsa.PublicKey{Curve: elliptic.P256(), X: &x, Y: &y}
+		fmt.Println("rawPubKey:", rawPubKey)
+		fmt.Println("r:", r)
+		fmt.Println("s", s)
+		fmt.Println("d2verify :", dataToVerify)
+
 		if ecdsa.Verify(&rawPubKey, []byte(dataToVerify), &r, &s) == false {
+
+			fmt.Printf("g")
 			return false
 		}
+
+		fmt.Printf("h")
 		txCopy.Vin[inID].PubKey = nil
 	}
+
+	fmt.Printf("i")
 
 	return true
 }

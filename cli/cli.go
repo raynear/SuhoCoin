@@ -82,8 +82,7 @@ func Run(bc *blockchain.Blockchain) {
 
 				address := []byte(sender)
 				fmt.Println("address : ", string(address[:]))
-				pubKeyHash := base58.Decode(string(address[:]))
-				pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+				pubKeyHash := wallet.GetPubKeyHashFromAddress(sender)
 				fmt.Println("pubKeyHash : ", base58.Encode(pubKeyHash[:]))
 
 				fmt.Printf("Input Password: ")
@@ -125,8 +124,7 @@ func Run(bc *blockchain.Blockchain) {
 			Usage: "getbalance 'address'",
 			Action: func(c *cli.Context) error {
 				address := c.Args()[0]
-				pubKeyHash := base58.Decode(address)
-				pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+				pubKeyHash := wallet.GetPubKeyHashFromAddress(address)
 				balance := 0
 				UTXO := utxo.UTXO{Blockchain: bc}
 				UTXOs := UTXO.FindUTXO(pubKeyHash)
@@ -148,8 +146,14 @@ func Run(bc *blockchain.Blockchain) {
 				fmt.Println("addblock:", c.Args())
 				bc.AddBlock(c.Args().First())
 
+				LastBlockHash, e := bc.DB.Get([]byte("l"), nil)
+				util.ERR("Load 'l' from db error", e)
+				LastBlockBytes, e := bc.DB.Get(append([]byte("b"), LastBlockHash...), nil)
+				util.ERR("Load lastblock from db error", e)
+				LastBlock := block.DeserializeBlock(LastBlockBytes)
+
 				UTXO := utxo.UTXO{Blockchain: bc}
-				UTXO.Reindex()
+				UTXO.Update(LastBlock)
 
 				return nil
 			},
