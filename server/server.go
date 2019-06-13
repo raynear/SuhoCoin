@@ -18,6 +18,10 @@ type version struct {
 	AddrFrom   string
 }
 
+type getblocks struct {
+	AddrFrom string
+}
+
 const protocol = "tcp"
 const nodeVersion = 1
 const commandLength = 12
@@ -104,7 +108,10 @@ func nodeIsKnown(addr string) bool {
 }
 
 func sendGetBlocks(address string) {
+	payload := gobEncode(getblocks{nodeAddress})
+	request := append(commandToBytes("getblocks"), payload...)
 
+	sendData(address, request)
 }
 
 func handleVersion(request []byte, bc *blockchain.Blockchain) {
