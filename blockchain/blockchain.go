@@ -27,7 +27,7 @@ func GenesisBlock(coinbase *transaction.Tx) *block.Block {
 	return POW.FindAnswer("GenesisBlock", []byte{}, int64(0), config.V.GetInt64("TargetBits"), []byte{}, []*transaction.Tx{coinbase})
 }
 
-func NewBlockchain() *Blockchain {
+func NewBlockchain(nodeID string) *Blockchain {
 	var LastBlockHash []byte
 	db, e := leveldb.OpenFile(config.V.GetString("Default_db"), nil)
 	util.ERR("NewBlockchain open DB Error", e)
@@ -92,6 +92,22 @@ func (bc *Blockchain) AddBlock(data string) *block.Block {
 	util.ClearDB(bc.TxPoolDB)
 
 	return newBlock
+}
+
+func (bc *Blockchain) GetBestHeight() int64 {
+	lastHash, e := bc.DB.Get([]byte("l"), nil)
+	if e != nil {
+		fmt.Println("Blockchain not in DB")
+		fmt.Println(lastHash)
+	}
+	lastBlockByte, e := bc.DB.Get(append([]byte("b"), lastHash...), nil)
+	if e != nil {
+		fmt.Println("lastHash exist, lastHash's block is not in DB")
+		fmt.Println(lastBlockByte)
+	}
+	lastBlock := block.DeserializeBlock(lastBlockByte)
+
+	return lastBlock.Header.Height
 }
 
 func (bc *Blockchain) AddTx(Tx *transaction.Tx) {
