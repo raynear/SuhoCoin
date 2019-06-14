@@ -94,6 +94,25 @@ func (bc *Blockchain) AddBlock(data string) *block.Block {
 	return newBlock
 }
 
+func (bc *Blockchain) GetBlockByHash(blockHash []byte) *block.Block {
+	BlockBytes, e := bc.DB.Get(blockHash, nil)
+	util.ERR("Load Block Error", e)
+
+	aBlock := block.DeserializeBlock(BlockBytes)
+
+	return aBlock
+}
+
+func (bc *Blockchain) GetBestBlockHash() []byte {
+	lastHash, e := bc.DB.Get([]byte("l"), nil)
+	if e != nil {
+		fmt.Println("Blockchain not in DB")
+		fmt.Println(lastHash)
+	}
+
+	return lastHash
+}
+
 func (bc *Blockchain) GetBestHeight() int64 {
 	lastHash, e := bc.DB.Get([]byte("l"), nil)
 	if e != nil {

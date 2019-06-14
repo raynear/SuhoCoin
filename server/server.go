@@ -2,15 +2,94 @@ package server
 
 import (
 	"SuhoCoin/blockchain"
+	"SuhoCoin/config"
 	"SuhoCoin/transaction"
 	"SuhoCoin/util"
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"strconv"
+
+	"github.com/urfave/negroni"
 )
+
+type Message struct {
+	JsonRPC string
+	ID      int
+	Method  string
+	Params  []interface{}
+}
+
+type Result struct {
+	JsonRPC string
+	ID      int
+	Result  []byte
+}
+
+func JsonRPC(w http.ResponseWriter, r *http.Request, bc *blockchain.Blockchain) {
+	b, e := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	util.ERR("RPC ReadBody Error", e)
+
+	var msg Message
+	e = json.Unmarshal(b, &msg)
+	util.ERR("json unmarshal Error", e)
+
+	result := Result{"2.0", msg.ID, []byte("")}
+
+	switch msg.Method {
+	case "GetBestHeight":
+		height := bc.GetBestHeight()
+		result.Result = []byte(strconv.FormatInt(height, 10))
+	case "GetBestBlockHash":
+		BestBlockHash := bc.GetBestBlockHash()
+		fmt.Println("BestBlockHash:", BestBlockHash)
+		result.Result = BestBlockHash
+	case "GetBlock":
+		hash, e := GetBytes(msg.Params[0])
+		util.ERR("convert byte error", e)
+		fmt.Println("hash", hash)
+		aBlock := bc.GetBlockByHash(hash)
+		fmt.Println("Block Height:", aBlock.Header.Height)
+		result.Result = []byte(string(hash))
+	default:
+	}
+
+	output, e := json.Marshal(result)
+	if e != nil {
+		http.Error(w, e.Error(), 500)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(output)
+}
+
+func GetBytes(key interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(key)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func StartServer(bc *blockchain.Blockchain, Port string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/rpc", func(w http.ResponseWriter, r *http.Request) {
+		JsonRPC(w, r, bc)
+	})
+
+	n := negroni.New()
+	n.UseHandler(mux)
+
+	http.ListenAndServe(":"+Port, n)
+}
 
 type version struct {
 	Version    int
@@ -32,14 +111,12 @@ var knownNodes = []string{"localhost:3000"}
 var blocksInTransit = [][]byte{}
 var mempool = make(map[string]transaction.Tx)
 
-func StartServer(nodeID string, minerAddress string) {
-	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
-	miningAddress = minerAddress
+func _StartServer(bc *blockchain.Blockchain) {
+	nodeAddress = fmt.Sprintf("localhost:%s", config.V.GetString("Port"))
+	miningAddress = config.V.GetString("Coinbase")
 	ln, e := net.Listen(protocol, nodeAddress)
 	util.ERR("net listen error", e)
 	defer ln.Close()
-
-	bc := blockchain.NewBlockchain(nodeID)
 
 	if nodeAddress != knownNodes[0] {
 		sendVersion(knownNodes[0], bc)

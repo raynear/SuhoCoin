@@ -6,6 +6,7 @@ import (
 	"SuhoCoin/block"
 	"SuhoCoin/blockchain"
 	"SuhoCoin/config"
+	"SuhoCoin/server"
 	"SuhoCoin/transaction"
 	"SuhoCoin/util"
 	"SuhoCoin/wallet"
@@ -22,7 +23,12 @@ import (
 	"github.com/urfave/cli"
 )
 
-func Run(bc *blockchain.Blockchain) {
+func Run() {
+	bc := blockchain.NewBlockchain("3001")
+	defer bc.DB.Close()
+	defer bc.UTXODB.Close()
+	defer bc.TxPoolDB.Close()
+
 	app := cli.NewApp()
 
 	app.Commands = []cli.Command{
@@ -264,6 +270,14 @@ func Run(bc *blockchain.Blockchain) {
 						aOut.Print()
 					}
 				}
+
+				return nil
+			},
+		},
+		{
+			Name: "startnode",
+			Action: func(c *cli.Context) error {
+				server.StartServer(bc, config.V.GetString("Port"))
 
 				return nil
 			},

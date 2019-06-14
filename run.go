@@ -1,7 +1,6 @@
 package main
 
 import (
-	"SuhoCoin/blockchain"
 	"SuhoCoin/cli"
 	"SuhoCoin/config"
 	"fmt"
@@ -12,10 +11,10 @@ func main() {
 	fmt.Println()
 
 	config.V = config.ReadConfig("suho.conf")
-	bc := blockchain.NewBlockchain()
-	defer bc.DB.Close()
-	defer bc.UTXODB.Close()
-	defer bc.TxPoolDB.Close()
+	//	bc := blockchain.NewBlockchain("3001")
+	//	defer bc.DB.Close()
+	//	defer bc.UTXODB.Close()
+	//	defer bc.TxPoolDB.Close()
 
-	cli.Run(bc)
+	cli.Run()
 }
